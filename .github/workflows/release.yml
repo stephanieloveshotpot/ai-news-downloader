@@ -1,0 +1,37 @@
+name: Release scraper executable
+
+# Push a tag like v1.0.0 and this builds aipulse-scraper.exe on Windows
+# and attaches it to a GitHub Release. The ai-news-desk app's release
+# workflow downloads that .exe and bundles it into the installer.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+      - run: pyinstaller aipulse-scraper.spec
+      - name: Smoke test the executable
+        run: dist\aipulse-scraper.exe --list-sources
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aipulse-scraper-windows
+          path: dist/aipulse-scraper.exe
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/aipulse-scraper.exe
+          generate_release_notes: true
