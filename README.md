@@ -8,26 +8,21 @@ Go to [Releases](https://github.com/stephanieloveshotpot/ai-news-downloader/rele
 
 ## What the installer does
 
-It's a hand-written [NSIS](https://nsis.sourceforge.io) script (`installer/AIPulse.nsi`) with these pages:
-
-1. Welcome
-2. Terms of service (must tick "I accept")
-3. Privacy policy (must tick "I accept")
-4. Startup options: launch with Windows; pop up on login / every 4 hours / never
-5. Install location (defaults to the per-user programs folder, so no admin rights)
-6. Install, then Finish with an "Open AI Pulse now" option
+It's an [NSIS](https://nsis.sourceforge.io) script (`installer/AIPulse.nsi`) styled to match the app: one small dark window with the logo and a progress bar. It copies the app, then opens **AI Pulse's own first-run setup**, which is where the welcome, terms of service, privacy policy, look (theme, animations, background) and startup choices happen, in the app's own design. Declining the terms there uninstalls again.
 
 On the PC it creates:
 
 | What | Where |
 | --- | --- |
 | The app (`AI Pulse.exe`, the bundled scraper, everything it needs) | `%LOCALAPPDATA%\Programs\AI Pulse\` |
-| The app's data folder, with `installer.json` carrying the startup choices for first launch | `%APPDATA%\ai-pulse\` |
+| The app's data folder (settings, bookmarks, cached articles) | `%APPDATA%\ai-pulse\` |
 | Start menu folder with app + uninstall shortcuts, desktop shortcut | Start menu, Desktop |
 | "Installed apps" entry so it can be removed from Windows Settings | `HKCU\...\Uninstall\AIPulse` |
-| Startup entry (only if ticked) | `HKCU\...\CurrentVersion\Run\AI Pulse` |
+| Startup entry, set by the app when "launch with Windows" is on | `HKCU\...\CurrentVersion\Run\AI Pulse` |
 
-Re-running a newer installer upgrades in place (it closes the running app first). The app's built-in updater does exactly this: it downloads the newest `AI-Pulse-Setup-<version>.exe` from this repo's latest release, checks it against the `.sha256` file published next to it, and runs it as `AI-Pulse-Setup-<version>.exe /S /relaunch`. A silent run over an existing install keeps the person's startup settings, and `/relaunch` starts the new version when it's done. **This repo must be public** (or at least its Releases must be reachable without a login) for installed apps to see updates. The uninstaller removes everything above and asks whether to delete the settings/bookmarks folder too.
+Switches: none = install then open setup; `/update /relaunch` = the in-app updater (same window titled "Updating AI Pulse", keeps everything, reopens the app); `/S` = silent; `/D=C:\path` = another folder. `makensis /DPREVIEW` builds a look-only installer that writes nothing, for design work.
+
+The app's built-in updater downloads the newest `AI-Pulse-Setup-<version>.exe` from this repo's latest release, checks it against the `.sha256` file published next to it, shows an "Updating…" screen and runs it with `/update /relaunch`. **This repo must be public** (or at least its Releases must be reachable without a login) for installed apps to see updates. The uninstaller removes everything above and asks whether to delete the settings folder too.
 
 ## How it gets the app
 
@@ -51,7 +46,7 @@ $env:APP_TOKEN = "<GitHub token that can read ai-news-desk>"   # the app repo is
 
 ## Automatic builds
 
-`.github/workflows/release.yml` runs on every push to `main`, every Monday, and on demand (Actions → "Build and publish the installer" → Run workflow). It fetches the newest app bundle, compiles the installer, silently installs and uninstalls it on the runner as a smoke test, and publishes the `.exe` under Releases.
+`.github/workflows/release.yml` runs on every push to `main`, when the app repo's release workflow starts it, every 6 hours as a safety net (only building app versions that have no installer yet), and on demand (Actions → "Build and publish the installer" → Run workflow). It fetches the newest app bundle, compiles the installer, silently installs and uninstalls it on the runner as a smoke test, and publishes the `.exe` under Releases.
 
 It needs one repository secret, **`APP_TOKEN`**: a fine-grained personal access token with read-only *Contents* permission on `ai-news-desk` (Settings → Secrets and variables → Actions). Without it the download step fails with a 404, because the app repo is private.
 

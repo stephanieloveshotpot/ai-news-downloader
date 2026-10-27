@@ -7,14 +7,16 @@ name: Build and publish the installer
 #   3. publishes AI-Pulse-Setup-<version>.exe to this repo's Releases,
 #      where <version> is the app bundle's version.
 #
-# The weekly schedule re-publishes automatically after app releases, so this
-# repo never has to be touched when only the app changed.
+# The app repo's release workflow starts this one as soon as a new app bundle
+# is out. As a safety net, a check every 6 hours builds any app version that
+# has no installer yet, so this repo never has to be touched when only the
+# app changed.
 
 on:
   push:
     branches: [main]
   schedule:
-    - cron: "17 3 * * 1"
+    - cron: "17 */6 * * *"
   workflow_dispatch:
     inputs:
       app_tag:
@@ -25,7 +27,29 @@ permissions:
   contents: write
 
 jobs:
+  # Scheduled runs only build when the newest app version has no installer yet.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.cmp.outputs.build }}
+    steps:
+      - id: cmp
+        env:
+          APP_TOKEN: ${{ secrets.APP_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          app=$(GH_TOKEN="$APP_TOKEN" gh release view -R stephanieloveshotpot/ai-news-desk --json tagName --jq .tagName 2>/dev/null || true)
+          if [ -z "$app" ]; then echo "can't see the app's releases; building anyway"; echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if gh release view "$app" -R "${{ github.repository }}" --json assets --jq '.assets[].name' 2>/dev/null | grep -q '^AI-Pulse-Setup-'; then
+            echo "installer for $app already published"; echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "no installer for $app yet"; echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: check
+    if: needs.check.outputs.build == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,8 +102,9 @@ jobs:
           Start-Process -Wait -FilePath $exe.FullName -ArgumentList "/S"
           $app = "$env:LOCALAPPDATA\Programs\AI Pulse\AI Pulse.exe"
           if (-not (Test-Path $app)) { throw "app not installed at $app" }
-          if (-not (Test-Path "$env:APPDATA\ai-pulse\installer.json")) { throw "installer.json missing" }
-          Get-Content "$env:APPDATA\ai-pulse\installer.json"
+          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\AI Pulse\Uninstall AI Pulse.exe")) { throw "uninstaller missing" }
+          if (-not (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AIPulse" -ErrorAction SilentlyContinue)) { throw "Installed apps entry missing" }
+          if (Get-Process "AI Pulse" -ErrorAction SilentlyContinue) { throw "a silent install must not start the app" }
           & "$env:LOCALAPPDATA\Programs\AI Pulse\resources\scraper\aipulse-scraper.exe" --list-sources
           Start-Process -Wait -FilePath "$env:LOCALAPPDATA\Programs\AI Pulse\Uninstall AI Pulse.exe" -ArgumentList "/S"
           if (Test-Path $app) { throw "uninstall left the app behind" }

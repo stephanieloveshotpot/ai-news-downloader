@@ -1,27 +1,33 @@
-; AI Pulse — custom Windows installer (NSIS 3, Modern UI 2)
+﻿; AI Pulse — Windows installer (NSIS 3, Modern UI 2)
 ;
 ; Compile:  makensis /DVERSION=1.0.0 /DPAYLOAD=..\payload installer\AIPulse.nsi
 ;   PAYLOAD is the unzipped app bundle from the ai-news-desk repo:
 ;     PAYLOAD\app\AI Pulse.exe (+ resources\...)   the app with the scraper inside
-;     PAYLOAD\legal\TERMS.txt, PRIVACY.txt           shown on the license pages
 ;
-; Pages:  Welcome -> Terms of service (accept) -> Privacy policy (accept)
-;         -> Startup options -> Install location -> Install -> Finish
+; The installer itself is one small dark window with a progress bar. The
+; welcome, terms, privacy and startup choices are AI Pulse's own first-run
+; setup, which opens as soon as the files are in place (AI Pulse.exe --setup).
+;
+; Modes:
+;   (no switches)        install, then open AI Pulse's setup
+;   /update /relaunch    the in-app updater: same window titled "Updating",
+;                        keeps everything, then starts the new version
+;   /S [/relaunch]       silent (CI smoke test, update-on-quit)
+;   /D=C:\path           install somewhere else (must be the last switch)
+;
+; makensis /DPREVIEW builds a look-only installer that shows the window and
+; progress but writes nothing (for screenshots and design work).
 ;
 ; What it sets up on the PC:
 ;   %LOCALAPPDATA%\Programs\AI Pulse\        the app files (per-user, no admin needed)
-;   %APPDATA%\ai-pulse\                      settings, cache, bookmarks (+ installer.json for first run)
 ;   Start menu folder "AI Pulse", desktop shortcut
 ;   HKCU ...\Uninstall\AIPulse               so it shows in "Installed apps"
-;   HKCU ...\CurrentVersion\Run\AI Pulse     only if "launch with Windows" was ticked
-;
-; Silent mode (/S) is how the app's built-in updater upgrades itself:
-;   "AI-Pulse-Setup-x.y.z.exe" /S /relaunch
-; It keeps existing startup settings and, with /relaunch, starts the app again.
+; Launch-at-login is set by the app itself (HKCU ...\Run\AI Pulse).
 
 Unicode true
 SetCompressor /SOLID lzma
 RequestExecutionLevel user
+ManifestDPIAware true
 
 !ifndef VERSION
   !define VERSION "0.0.0"
@@ -43,11 +49,22 @@ RequestExecutionLevel user
 !define RUN_KEY       "Software\Microsoft\Windows\CurrentVersion\Run"
 !define DATA_DIR      "$APPDATA\ai-pulse"
 
+; colours (match the app's dark theme)
+!define BG    "0F1411"
+!define CARD  "161D19"
+!define INK   "E8EEE8"
+!define MUTED "85958C"
+
 Name "${APP_NAME}"
+Caption "${APP_NAME} Setup"
+UninstallCaption "Remove ${APP_NAME}"
 OutFile "${OUTDIR}\AI-Pulse-Setup-${VERSION}.exe"
 InstallDir "$LOCALAPPDATA\Programs\${APP_NAME}"
 InstallDirRegKey HKCU "Software\${APP_ID}" "InstallDir"
-BrandingText "${APP_NAME} ${VERSION} · ${PUBLISHER}"
+BrandingText " "
+ShowInstDetails nevershow
+ShowUninstDetails nevershow
+AutoCloseWindow true
 
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "${APP_NAME}"
@@ -58,163 +75,152 @@ VIAddVersionKey "CompanyName" "${PUBLISHER}"
 VIAddVersionKey "LegalCopyright" "© 2026 ${PUBLISHER}"
 
 !include "MUI2.nsh"
-!include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 !include "FileFunc.nsh"
+
+Var IsUpdate
 
 ; ---------- look ----------
 !define MUI_ICON "..\assets\icon.ico"
 !define MUI_UNICON "..\assets\icon.ico"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "..\assets\sidebar.bmp"
-!define MUI_UNWELCOMEFINISHPAGE_BITMAP "..\assets\sidebar.bmp"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "..\assets\header.bmp"
+!define MUI_HEADERIMAGE_UNBITMAP "..\assets\header.bmp"
+!define MUI_HEADERIMAGE_BITMAP_STRETCH "AspectFitHeight"
+!define MUI_HEADERIMAGE_UNBITMAP_STRETCH "AspectFitHeight"
+!define MUI_BGCOLOR "${BG}"
+!define MUI_TEXTCOLOR "${INK}"
+!define MUI_HEADER_TRANSPARENT_TEXT
+!define MUI_INSTFILESPAGE_COLORS "${INK} ${CARD}"
+!define MUI_INSTFILESPAGE_PROGRESSBAR "smooth"
 !define MUI_ABORTWARNING
+!define MUI_ABORTWARNING_TEXT "Stop installing ${APP_NAME}?"
 
-; ---------- variables ----------
-Var StartupDialog
-Var ChkLaunchAtLogin
-Var RadioPopLogin
-Var RadioPopInterval
-Var RadioPopNever
-Var LaunchAtLogin
-Var PopupMode
-
-; ---------- installer pages ----------
-!define MUI_WELCOMEPAGE_TITLE "Welcome to ${APP_NAME}"
-!define MUI_WELCOMEPAGE_TEXT "${APP_NAME} collects the day's AI news from Hacker News, arXiv, company blogs and the tech press, and pops up when you sit down at your PC.$\r$\n$\r$\nNothing leaves your computer. The next two pages are the terms of service and the privacy policy; you'll need to accept both to continue."
-!insertmacro MUI_PAGE_WELCOME
-
-!define MUI_PAGE_HEADER_TEXT "Terms of service"
-!define MUI_PAGE_HEADER_SUBTEXT "Please read the terms before installing ${APP_NAME}."
-!define MUI_LICENSEPAGE_TEXT_TOP "Scroll to read the whole agreement."
-!define MUI_LICENSEPAGE_CHECKBOX
-!define MUI_LICENSEPAGE_CHECKBOX_TEXT "I accept the terms of service"
-!insertmacro MUI_PAGE_LICENSE "${PAYLOAD}\legal\TERMS.txt"
-
-!define MUI_PAGE_HEADER_TEXT "Privacy policy"
-!define MUI_PAGE_HEADER_SUBTEXT "How ${APP_NAME} handles your information: it stays on this PC."
-!define MUI_LICENSEPAGE_TEXT_TOP "Scroll to read the whole policy."
-!define MUI_LICENSEPAGE_CHECKBOX
-!define MUI_LICENSEPAGE_CHECKBOX_TEXT "I accept the privacy policy"
-!insertmacro MUI_PAGE_LICENSE "${PAYLOAD}\legal\PRIVACY.txt"
-
-Page custom StartupOptionsCreate StartupOptionsLeave
-
-!define MUI_DIRECTORYPAGE_TEXT_TOP "${APP_NAME} installs for your user account only, so no administrator password is needed. Change the folder if you want it somewhere else."
-!insertmacro MUI_PAGE_DIRECTORY
-
+; ---------- the one page ----------
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ProgressShow
+!define MUI_INSTFILESPAGE_FINISHHEADER_TEXT "Done"
+!define MUI_INSTFILESPAGE_FINISHHEADER_SUBTEXT "Opening ${APP_NAME}…"
 !insertmacro MUI_PAGE_INSTFILES
 
-!define MUI_FINISHPAGE_TITLE "${APP_NAME} is installed"
-!define MUI_FINISHPAGE_TEXT "The app lives in the system tray next to the clock. Closing its window hides it; use Quit in the tray menu to stop it.$\r$\n$\r$\nYou can change the pop-up schedule and startup behaviour any time in Settings."
-!define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
-!define MUI_FINISHPAGE_RUN_TEXT "Open ${APP_NAME} now"
-!insertmacro MUI_PAGE_FINISH
-
-; ---------- uninstaller pages ----------
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.ProgressShow
 !insertmacro MUI_UNPAGE_CONFIRM
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.ProgressShow
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
 
-; ---------- defaults for silent installs (no pages are shown) ----------
-Function .onInit
-  StrCpy $LaunchAtLogin ${BST_CHECKED}
-  StrCpy $PopupMode "login"
-FunctionEnd
+; Paints the window in the app's colours, hides the Back/Next buttons and the
+; divider lines, and sets the header text for install or update.
+!macro DarkWindow
+  SetCtlColors $HWNDPARENT ${INK} ${BG}
+  FindWindow $0 "#32770" "" $HWNDPARENT
+  SetCtlColors $0 ${INK} ${BG}
+  ; header title/subtitle, branding text, divider lines
+  GetDlgItem $1 $HWNDPARENT 1037
+  SetCtlColors $1 ${INK} ${BG}
+  GetDlgItem $1 $HWNDPARENT 1038
+  SetCtlColors $1 ${MUTED} ${BG}
+  GetDlgItem $1 $HWNDPARENT 1028
+  SetCtlColors $1 ${MUTED} ${BG}
+  GetDlgItem $1 $HWNDPARENT 1035
+  ShowWindow $1 ${SW_HIDE}
+  GetDlgItem $1 $HWNDPARENT 1036
+  ShowWindow $1 ${SW_HIDE}
+  GetDlgItem $1 $HWNDPARENT 1256
+  ShowWindow $1 ${SW_HIDE}
+  GetDlgItem $1 $HWNDPARENT 1045
+  ShowWindow $1 ${SW_HIDE}
+  ; inner page: status line, progress bar, (hidden) details list
+  GetDlgItem $1 $0 1006
+  SetCtlColors $1 ${INK} ${BG}
+  GetDlgItem $1 $0 1016
+  SetCtlColors $1 ${INK} ${CARD}
+  ; flat progress bar in the app's accent colour (needs the theme switched off)
+  GetDlgItem $1 $0 1004
+  System::Call 'uxtheme::SetWindowTheme(p r1, w " ", w " ")'
+  SendMessage $1 0x409 0 0x00FF8C7A      ; PBM_SETBARCOLOR  #7A8CFF (COLORREF is BGR)
+  SendMessage $1 0x2001 0 0x00262C22     ; PBM_SETBKCOLOR   #222C26
+  ; dark title bar and dark Cancel button (Windows 10 1809+; ignored elsewhere)
+  System::Call 'dwmapi::DwmSetWindowAttribute(p $HWNDPARENT, i 20, *i 1, i 4)'
+  GetDlgItem $1 $HWNDPARENT 2
+  System::Call 'uxtheme::SetWindowTheme(p r1, w "DarkMode_Explorer", p 0)'
+!macroend
 
-; ---------- startup options page ----------
-Function StartupOptionsCreate
-  !insertmacro MUI_HEADER_TEXT "Startup options" "Choose when ${APP_NAME} should appear. You can change this later in Settings or from the tray icon."
-  nsDialogs::Create 1018
-  Pop $StartupDialog
-  ${If} $StartupDialog == error
-    Abort
-  ${EndIf}
-
-  ${NSD_CreateCheckbox} 0 0 100% 12u "Launch ${APP_NAME} when Windows starts"
-  Pop $ChkLaunchAtLogin
-  ${NSD_Check} $ChkLaunchAtLogin
-
-  ${NSD_CreateLabel} 0 24u 100% 12u "Pop up the news window:"
-  Pop $0
-
-  ${NSD_CreateRadioButton} 10u 40u 100% 12u "When I log in to Windows (recommended)"
-  Pop $RadioPopLogin
-  ${NSD_Check} $RadioPopLogin
-  ${NSD_CreateRadioButton} 10u 56u 100% 12u "Every 4 hours (adjustable in Settings)"
-  Pop $RadioPopInterval
-  ${NSD_CreateRadioButton} 10u 72u 100% 12u "Never, I'll open it from the tray icon"
-  Pop $RadioPopNever
-
-  ${NSD_CreateLabel} 0 100u 100% 24u "${APP_NAME} sits in the system tray. Closing the window hides it; use Quit in the tray menu to stop it completely."
-  Pop $0
-
-  nsDialogs::Show
-FunctionEnd
-
-Function StartupOptionsLeave
-  ${NSD_GetState} $ChkLaunchAtLogin $LaunchAtLogin
-  ${NSD_GetState} $RadioPopLogin $0
-  ${If} $0 == ${BST_CHECKED}
-    StrCpy $PopupMode "login"
+Function ProgressShow
+  !insertmacro DarkWindow
+  GetDlgItem $1 $HWNDPARENT 3       ; Back
+  ShowWindow $1 ${SW_HIDE}
+  GetDlgItem $1 $HWNDPARENT 1       ; Next
+  ShowWindow $1 ${SW_HIDE}
+  ${If} $IsUpdate == 1
+    !insertmacro MUI_HEADER_TEXT "Updating ${APP_NAME}" "Installing version ${VERSION}. ${APP_NAME} reopens by itself in a moment."
   ${Else}
-    ${NSD_GetState} $RadioPopInterval $0
-    ${If} $0 == ${BST_CHECKED}
-      StrCpy $PopupMode "interval"
-    ${Else}
-      StrCpy $PopupMode "never"
-    ${EndIf}
+    !insertmacro MUI_HEADER_TEXT "Installing ${APP_NAME}" "Version ${VERSION} · this takes a few seconds, then ${APP_NAME} opens."
+  ${EndIf}
+FunctionEnd
+
+Function un.ProgressShow
+  !insertmacro DarkWindow
+FunctionEnd
+
+Function .onInit
+  StrCpy $IsUpdate 0
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/update" $1
+  ${IfNot} ${Errors}
+    StrCpy $IsUpdate 1
   ${EndIf}
 FunctionEnd
 
 ; ---------- install ----------
 Section "Install"
-  SetDetailsPrint both
+  SetDetailsPrint textonly
 
-  ; Stop a running copy so files can be replaced (upgrade in place).
-  DetailPrint "Closing any running ${APP_NAME}…"
+  ; Stop a running copy so files can be replaced (upgrade in place). When the
+  ; app updates itself it is already quitting; give it a moment first.
+  DetailPrint "Closing ${APP_NAME}…"
   ${If} ${Silent}
-    Sleep 2000   ; when the app updates itself it is already quitting; let it finish
+  ${OrIf} $IsUpdate == 1
+    Sleep 1200
   ${EndIf}
-  nsExec::ExecToLog 'taskkill /F /IM "${APP_EXE}" /T'
+!ifndef PREVIEW
+  nsExec::Exec 'taskkill /F /IM "${APP_EXE}" /T'
   Pop $0
-  Sleep 800
+!endif
+  Sleep 400
 
+!ifdef PREVIEW
+  DetailPrint "Copying ${APP_NAME}…"
+  ${For} $9 1 12
+    Sleep 450
+    IntOp $8 $9 * 2400
+    FindWindow $7 "#32770" "" $HWNDPARENT
+    GetDlgItem $7 $7 1004
+    SendMessage $7 ${PBM_SETPOS} $8 0
+  ${Next}
+  DetailPrint "Adding shortcuts…"
+  Sleep 3000
+!else
   ; 1. Program files
+  DetailPrint "Copying ${APP_NAME}…"
   SetOutPath "$INSTDIR"
   SetOverwrite on
   File /r "${PAYLOAD}\app\*.*"
   WriteUninstaller "$INSTDIR\Uninstall ${APP_NAME}.exe"
   WriteRegStr HKCU "Software\${APP_ID}" "InstallDir" "$INSTDIR"
-
-  ; 2. Data folder the app expects, plus the first-run choices.
-  ;    A silent run over an existing install is the app updating itself:
-  ;    keep the person's startup settings exactly as they are.
   CreateDirectory "${DATA_DIR}"
-  ${If} ${Silent}
-  ${AndIf} ${FileExists} "${DATA_DIR}\settings.json"
-    DetailPrint "Upgrade: keeping existing startup settings"
-    Goto shortcuts
-  ${EndIf}
-  ${If} $LaunchAtLogin == ${BST_CHECKED}
-    StrCpy $1 "true"
-    WriteRegStr HKCU "${RUN_KEY}" "${APP_NAME}" '"$INSTDIR\${APP_EXE}" --hidden'
-  ${Else}
-    StrCpy $1 "false"
-    DeleteRegValue HKCU "${RUN_KEY}" "${APP_NAME}"
-  ${EndIf}
-  FileOpen $2 "${DATA_DIR}\installer.json" w
-  FileWrite $2 '{"launchAtLogin": $1, "popupMode": "$PopupMode", "termsAccepted": true, "installerVersion": "${VERSION}"}'
-  FileClose $2
 
-  ; 3. Shortcuts
-  shortcuts:
+  ; 2. Shortcuts
+  DetailPrint "Adding shortcuts…"
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall ${APP_NAME}.exe"
-  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
+  ${IfNot} $IsUpdate == 1
+    CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
+  ${EndIf}
 
-  ; 4. "Installed apps" entry
+  ; 3. "Installed apps" entry
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
   WriteRegStr   HKCU "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
@@ -230,21 +236,29 @@ Section "Install"
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoRepair" 1
 
-  ; 5. The in-app updater runs "setup.exe /S /relaunch": start the new version.
+  ; 4. Start the app: the new version after an update, or the first-run setup
+  ;    after a fresh install. A plain silent install starts nothing.
+  DetailPrint "Starting ${APP_NAME}…"
   ${GetParameters} $0
   ClearErrors
   ${GetOptions} $0 "/relaunch" $1
   ${IfNot} ${Errors}
     Exec '"$INSTDIR\${APP_EXE}"'
+  ${ElseIfNot} ${Silent}
+    Exec '"$INSTDIR\${APP_EXE}" --setup'
   ${EndIf}
+!endif
 SectionEnd
 
 ; ---------- uninstall ----------
 Section "Uninstall"
-  nsExec::ExecToLog 'taskkill /F /IM "${APP_EXE}" /T'
+  SetDetailsPrint textonly
+  DetailPrint "Closing ${APP_NAME}…"
+  nsExec::Exec 'taskkill /F /IM "${APP_EXE}" /T'
   Pop $0
   Sleep 800
 
+  DetailPrint "Removing ${APP_NAME}…"
   DeleteRegValue HKCU "${RUN_KEY}" "${APP_NAME}"
   DeleteRegKey HKCU "${UNINST_KEY}"
   DeleteRegKey HKCU "Software\${APP_ID}"
@@ -256,6 +270,6 @@ Section "Uninstall"
 
   ; Settings and bookmarks are kept unless the person asks, so a reinstall picks them up.
   IfSilent +3
-  MessageBox MB_YESNO|MB_ICONQUESTION "Also delete your ${APP_NAME} settings and bookmarks?$\r$\n($\"${DATA_DIR}$\")" IDNO +2
+  MessageBox MB_YESNO|MB_ICONQUESTION "Also delete your ${APP_NAME} settings, bookmarks and saved articles?$\r$\n($\"${DATA_DIR}$\")" IDNO +2
   RMDir /r "${DATA_DIR}"
 SectionEnd
