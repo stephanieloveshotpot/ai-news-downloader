@@ -14,6 +14,10 @@
 ;   Start menu folder "AI Pulse", desktop shortcut
 ;   HKCU ...\Uninstall\AIPulse               so it shows in "Installed apps"
 ;   HKCU ...\CurrentVersion\Run\AI Pulse     only if "launch with Windows" was ticked
+;
+; Silent mode (/S) is how the app's built-in updater upgrades itself:
+;   "AI-Pulse-Setup-x.y.z.exe" /S /relaunch
+; It keeps existing startup settings and, with /relaunch, starts the app again.
 
 Unicode true
 SetCompressor /SOLID lzma
@@ -112,6 +116,12 @@ Page custom StartupOptionsCreate StartupOptionsLeave
 
 !insertmacro MUI_LANGUAGE "English"
 
+; ---------- defaults for silent installs (no pages are shown) ----------
+Function .onInit
+  StrCpy $LaunchAtLogin ${BST_CHECKED}
+  StrCpy $PopupMode "login"
+FunctionEnd
+
 ; ---------- startup options page ----------
 Function StartupOptionsCreate
   !insertmacro MUI_HEADER_TEXT "Startup options" "Choose when ${APP_NAME} should appear. You can change this later in Settings or from the tray icon."
@@ -163,6 +173,9 @@ Section "Install"
 
   ; Stop a running copy so files can be replaced (upgrade in place).
   DetailPrint "Closing any running ${APP_NAME}…"
+  ${If} ${Silent}
+    Sleep 2000   ; when the app updates itself it is already quitting; let it finish
+  ${EndIf}
   nsExec::ExecToLog 'taskkill /F /IM "${APP_EXE}" /T'
   Pop $0
   Sleep 800
@@ -174,8 +187,15 @@ Section "Install"
   WriteUninstaller "$INSTDIR\Uninstall ${APP_NAME}.exe"
   WriteRegStr HKCU "Software\${APP_ID}" "InstallDir" "$INSTDIR"
 
-  ; 2. Data folder the app expects, plus the first-run choices
+  ; 2. Data folder the app expects, plus the first-run choices.
+  ;    A silent run over an existing install is the app updating itself:
+  ;    keep the person's startup settings exactly as they are.
   CreateDirectory "${DATA_DIR}"
+  ${If} ${Silent}
+  ${AndIf} ${FileExists} "${DATA_DIR}\settings.json"
+    DetailPrint "Upgrade: keeping existing startup settings"
+    Goto shortcuts
+  ${EndIf}
   ${If} $LaunchAtLogin == ${BST_CHECKED}
     StrCpy $1 "true"
     WriteRegStr HKCU "${RUN_KEY}" "${APP_NAME}" '"$INSTDIR\${APP_EXE}" --hidden'
@@ -188,6 +208,7 @@ Section "Install"
   FileClose $2
 
   ; 3. Shortcuts
+  shortcuts:
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall ${APP_NAME}.exe"
@@ -208,6 +229,14 @@ Section "Install"
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" $0
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoRepair" 1
+
+  ; 5. The in-app updater runs "setup.exe /S /relaunch": start the new version.
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/relaunch" $1
+  ${IfNot} ${Errors}
+    Exec '"$INSTDIR\${APP_EXE}"'
+  ${EndIf}
 SectionEnd
 
 ; ---------- uninstall ----------

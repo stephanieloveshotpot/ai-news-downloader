@@ -85,6 +85,15 @@ jobs:
           if (Test-Path $app) { throw "uninstall left the app behind" }
           "silent install + uninstall OK"
 
+      - name: Write the checksum the in-app updater verifies
+        shell: pwsh
+        run: |
+          Get-ChildItem dist\AI-Pulse-Setup-*.exe | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            Set-Content -NoNewline -Encoding ascii "$($_.FullName).sha256" "$h  $($_.Name)"
+            "$($_.Name): $h"
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: installer
@@ -95,7 +104,9 @@ jobs:
         with:
           tag_name: v${{ steps.bundle.outputs.version }}
           name: AI Pulse ${{ steps.bundle.outputs.version }}
-          files: dist/AI-Pulse-Setup-*.exe
+          files: |
+            dist/AI-Pulse-Setup-*.exe
+            dist/AI-Pulse-Setup-*.exe.sha256
           body: |
             **Download `AI-Pulse-Setup-${{ steps.bundle.outputs.version }}.exe` below and run it.**
 

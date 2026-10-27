@@ -4,7 +4,7 @@ This repo builds the Windows installer for [AI Pulse](https://github.com/stephan
 
 ## Just want the app?
 
-Go to [Releases](https://github.com/stephanieloveshotpot/ai-news-scraper/releases/latest), download `AI-Pulse-Setup-<version>.exe`, run it. Windows SmartScreen will likely warn because the file isn't code-signed: click **More info → Run anyway**. No Python, no admin password.
+Go to [Releases](https://github.com/stephanieloveshotpot/ai-news-downloader/releases/latest), download `AI-Pulse-Setup-<version>.exe`, run it. Windows SmartScreen will likely warn because the file isn't code-signed: click **More info → Run anyway**. No Python, no admin password.
 
 ## What the installer does
 
@@ -27,7 +27,7 @@ On the PC it creates:
 | "Installed apps" entry so it can be removed from Windows Settings | `HKCU\...\Uninstall\AIPulse` |
 | Startup entry (only if ticked) | `HKCU\...\CurrentVersion\Run\AI Pulse` |
 
-Re-running a newer installer upgrades in place (it closes the running app first). The uninstaller removes everything above and asks whether to delete the settings/bookmarks folder too.
+Re-running a newer installer upgrades in place (it closes the running app first). The app's built-in updater does exactly this: it downloads the newest `AI-Pulse-Setup-<version>.exe` from this repo's latest release, checks it against the `.sha256` file published next to it, and runs it as `AI-Pulse-Setup-<version>.exe /S /relaunch`. A silent run over an existing install keeps the person's startup settings, and `/relaunch` starts the new version when it's done. **This repo must be public** (or at least its Releases must be reachable without a login) for installed apps to see updates. The uninstaller removes everything above and asks whether to delete the settings/bookmarks folder too.
 
 ## How it gets the app
 
