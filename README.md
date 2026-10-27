@@ -1,94 +1,68 @@
-# AI Pulse — Scraper
+# AI Pulse — Installer
 
-The Python half of [AI Pulse](https://github.com/stephanieloveshotpot/ai-news-desk), a desktop app that shows you AI news. This program goes out to a handful of public websites, collects the latest AI-related stories, and writes them all into one file (`feed.json`) that the desktop app reads and displays.
+This repo builds the Windows installer for [AI Pulse](https://github.com/stephanieloveshotpot/ai-news-desk), the desktop app that collects the day's AI news and pops up when you sit down at your PC. The app and its news scraper live in the app repo; this repo only contains the custom setup program that puts the app on a user's computer.
 
-You don't need to run this yourself. The desktop app ships with it built in. This repo is here so you can see how it works, change the sources, or run it on its own.
+## Just want the app?
 
-## What it collects
+Go to [Releases](https://github.com/stephanieloveshotpot/ai-news-scraper/releases/latest), download `AI-Pulse-Setup-<version>.exe`, run it. Windows SmartScreen will likely warn because the file isn't code-signed: click **More info → Run anyway**. No Python, no admin password.
 
-| Source group | Where it looks | Notes |
-| --- | --- | --- |
-| Hacker News | Algolia HN search API | Front page + keyword search over the last 48 h |
-| arXiv | arXiv API | New papers in cs.AI, cs.LG, cs.CL |
-| Company blogs | RSS | Anthropic, OpenAI, Google DeepMind, Google AI, Meta AI, Hugging Face, Microsoft AI, NVIDIA |
-| Tech press | RSS | TechCrunch AI, The Verge AI, MIT Technology Review, VentureBeat AI, Ars Technica, WIRED |
+## What the installer does
 
-Everything comes from official public APIs or public RSS feeds. Nothing is logged in, nothing is scraped from behind a login, and the program identifies itself with a clear user agent.
+It's a hand-written [NSIS](https://nsis.sourceforge.io) script (`installer/AIPulse.nsi`) with these pages:
 
-## How it works, in plain English
+1. Welcome
+2. Terms of service (must tick "I accept")
+3. Privacy policy (must tick "I accept")
+4. Startup options: launch with Windows; pop up on login / every 4 hours / never
+5. Install location (defaults to the per-user programs folder, so no admin rights)
+6. Install, then Finish with an "Open AI Pulse now" option
 
-1. **Fetch.** Each source is asked for its latest items, all four groups at the same time (`aipulse_scraper/sources/`).
-2. **Normalise.** Every item becomes the same shape, an `Article` with a title, link, source, date, summary and a few tags (`models.py`).
-3. **Score.** A keyword scorer rates how AI-related each item is from 0 to 100 (`relevance.py`). Sources that are AI-only by nature (arXiv, company blogs) get a floor so they're never dropped.
-4. **Dedupe.** The same link seen on Hacker News and in a blog's RSS is merged into one card, keeping the HN points (`pipeline.py`).
-5. **Write.** The result is saved as `feed.json`, newest first.
+On the PC it creates:
 
-If one site is down, the others still work; the run reports which source failed in the JSON's `errors` field.
+| What | Where |
+| --- | --- |
+| The app (`AI Pulse.exe`, the bundled scraper, everything it needs) | `%LOCALAPPDATA%\Programs\AI Pulse\` |
+| The app's data folder, with `installer.json` carrying the startup choices for first launch | `%APPDATA%\ai-pulse\` |
+| Start menu folder with app + uninstall shortcuts, desktop shortcut | Start menu, Desktop |
+| "Installed apps" entry so it can be removed from Windows Settings | `HKCU\...\Uninstall\AIPulse` |
+| Startup entry (only if ticked) | `HKCU\...\CurrentVersion\Run\AI Pulse` |
 
-## Run it yourself
+Re-running a newer installer upgrades in place (it closes the running app first). The uninstaller removes everything above and asks whether to delete the settings/bookmarks folder too.
 
-```bash
-pip install -e .
-aipulse-scraper --out feed.json          # all sources
-aipulse-scraper --sources hackernews,arxiv --stdout
-aipulse-scraper --list-sources
-aipulse-scraper --help
+## How it gets the app
+
+The app repo publishes an **app bundle** zip on every release (`AI-Pulse-app-win-x64-<version>.zip`: the unpacked app, the legal texts, and a `VERSION` file). `scripts/fetch-bundle.js` downloads the newest one into `payload/`, and NSIS packs `payload/app` into the setup `.exe`. The installer's version number always equals the app bundle's.
+
+```
+ai-news-desk (app + scraper)  --app bundle zip-->  this repo  --NSIS-->  AI-Pulse-Setup-<version>.exe
 ```
 
-Python 3.10 or newer.
+## Build it yourself (Windows)
 
-## Build the standalone executable
+Needs Node.js 22+ and NSIS 3 (`makensis` on PATH; `winget install NSIS.NSIS`).
 
-```bash
-pip install -e ".[dev]"
-pyinstaller aipulse-scraper.spec
-# -> dist/aipulse-scraper  (or aipulse-scraper.exe on Windows)
+```powershell
+$env:APP_TOKEN = "<GitHub token that can read ai-news-desk>"   # the app repo is private
+.\scripts\build.ps1
+# -> dist\AI-Pulse-Setup-<version>.exe
 ```
 
-The GitHub Actions workflow in `.github/workflows/release.yml` does this automatically on Windows whenever a tag like `v1.0.0` is pushed, and attaches the `.exe` to a Release. The desktop app's installer build pulls it from there.
+`.\scripts\build.ps1 -NoFetch` reuses whatever is already in `payload\`.
 
-## Change the sources
+## Automatic builds
 
-- Add or remove RSS feeds in `aipulse_scraper/sources/rss.py` (`BLOG_FEEDS`, `PRESS_FEEDS`).
-- Change the Hacker News search terms in `sources/hackernews.py` (`QUERIES`).
-- Change arXiv categories in `sources/arxiv.py` (`CATEGORIES`).
-- Tune what counts as "AI-related" in `relevance.py`.
+`.github/workflows/release.yml` runs on every push to `main`, every Monday, and on demand (Actions → "Build and publish the installer" → Run workflow). It fetches the newest app bundle, compiles the installer, silently installs and uninstalls it on the runner as a smoke test, and publishes the `.exe` under Releases.
 
-## Tests
+It needs one repository secret, **`APP_TOKEN`**: a fine-grained personal access token with read-only *Contents* permission on `ai-news-desk` (Settings → Secrets and variables → Actions). Without it the download step fails with a 404, because the app repo is private.
 
-```bash
-pytest
+## Layout
+
 ```
-
-The tests run fully offline using sample feeds, so they pass even without internet.
-
-## Output format
-
-```json
-{
-  "version": "1.0.0",
-  "generated_at": "2026-10-27T09:00:00+00:00",
-  "sources": ["hackernews", "arxiv", "blogs", "press"],
-  "errors": {},
-  "count": 123,
-  "articles": [
-    {
-      "id": "3f2a…",
-      "title": "…",
-      "url": "https://…",
-      "source": "hackernews",
-      "source_label": "Hacker News",
-      "category": "news",
-      "published": "2026-10-27T08:12:00+00:00",
-      "summary": "…",
-      "author": "…",
-      "score": 72.0,
-      "tags": ["llm", "agents"],
-      "comments_url": "https://news.ycombinator.com/item?id=…",
-      "points": 240
-    }
-  ]
-}
+installer/AIPulse.nsi     the installer: pages, files, folders, shortcuts, registry, uninstaller
+assets/                   icon.ico and the sidebar image shown on the welcome/finish pages
+scripts/fetch-bundle.js   downloads + unzips the newest app bundle into payload/
+scripts/build.ps1         one-command local build
+.github/workflows/        the automatic build + publish
 ```
 
 ## License

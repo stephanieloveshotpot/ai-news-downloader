@@ -1,9 +1,4 @@
-__pycache__/
-*.pyc
-.pytest_cache/
-build/
+payload/
 dist/
-*.egg-info/
-feed.json
-feed.json.tmp
-.venv/
+node_modules/
+*.log

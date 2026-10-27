@@ -1,44 +1,83 @@
-name: Release scraper executable
+name: Build and publish the installer
 
-# Every push to main (or a tag like v1.0.0) builds aipulse-scraper.exe on
-# Windows and attaches it to a GitHub Release named after the version in
-# pyproject.toml. Bump that version to publish a new release. The
-# ai-news-desk app's release workflow downloads the .exe and bundles it.
+# Every push to main (or a manual run) does this on Windows:
+#   1. downloads the newest app bundle from the ai-news-desk repo's Releases
+#      (needs the APP_TOKEN secret because that repo is private),
+#   2. compiles installer/AIPulse.nsi with NSIS,
+#   3. publishes AI-Pulse-Setup-<version>.exe to this repo's Releases,
+#      where <version> is the app bundle's version.
+#
+# The weekly schedule re-publishes automatically after app releases, so this
+# repo never has to be touched when only the app changed.
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+  schedule:
+    - cron: "17 3 * * 1"
   workflow_dispatch:
+    inputs:
+      app_tag:
+        description: "App release tag to wrap (blank = latest)"
+        required: false
 
 permissions:
   contents: write
 
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      - run: pytest -q
-      - run: pyinstaller aipulse-scraper.spec
-      - name: Smoke test the executable
-        run: .\dist\aipulse-scraper.exe --list-sources
+          node-version: 22
+
+      - name: Fetch the app bundle
+        id: bundle
+        shell: bash
+        env:
+          APP_TOKEN: ${{ secrets.APP_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          out=$(node scripts/fetch-bundle.js "${{ github.event.inputs.app_tag }}")
+          echo "$out"
+          echo "version=$(echo "$out" | tail -n1)" >> "$GITHUB_OUTPUT"
+
+      - name: Compile the installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          makensis /V2 "/DVERSION=${{ steps.bundle.outputs.version }}" "/DPAYLOAD=..\payload" "/DOUTDIR=..\dist" installer\AIPulse.nsi
+          Get-ChildItem dist
+
+      - name: Silent-install smoke test
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist\AI-Pulse-Setup-*.exe | Select-Object -First 1
+          Start-Process -Wait -FilePath $exe.FullName -ArgumentList "/S"
+          $app = "$env:LOCALAPPDATA\Programs\AI Pulse\AI Pulse.exe"
+          if (-not (Test-Path $app)) { throw "app not installed at $app" }
+          if (-not (Test-Path "$env:APPDATA\ai-pulse\installer.json")) { throw "installer.json missing" }
+          Get-Content "$env:APPDATA\ai-pulse\installer.json"
+          & "$env:LOCALAPPDATA\Programs\AI Pulse\resources\scraper\aipulse-scraper.exe" --list-sources
+          Start-Process -Wait -FilePath "$env:LOCALAPPDATA\Programs\AI Pulse\Uninstall AI Pulse.exe" -ArgumentList "/S"
+          if (Test-Path $app) { throw "uninstall left the app behind" }
+          "silent install + uninstall OK"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: aipulse-scraper-windows
-          path: dist/aipulse-scraper.exe
-      - name: Read version from pyproject.toml
-        id: ver
-        shell: bash
-        run: echo "tag=v$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)".*/\1/')" >> "$GITHUB_OUTPUT"
-      - name: Publish release (creates the tag if it doesn't exist yet)
+          name: installer
+          path: dist/AI-Pulse-Setup-*.exe
+
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: Scraper ${{ steps.ver.outputs.tag }}
-          files: dist/aipulse-scraper.exe
-          generate_release_notes: true
+          tag_name: v${{ steps.bundle.outputs.version }}
+          name: AI Pulse ${{ steps.bundle.outputs.version }}
+          files: dist/AI-Pulse-Setup-*.exe
+          body: |
+            **Download `AI-Pulse-Setup-${{ steps.bundle.outputs.version }}.exe` below and run it.**
+
+            The installer shows the terms of service and privacy policy, lets you choose whether AI Pulse starts with Windows and when it pops up, and creates the app and data folders, Start menu and desktop shortcuts, and an uninstaller. No Python or admin rights needed.
+
+            Windows SmartScreen may warn because the installer isn't code-signed: click *More info → Run anyway*.
