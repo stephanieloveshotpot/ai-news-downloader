@@ -5,11 +5,11 @@
 block_cipher = None
 
 a = Analysis(
-    ["aipulse_scraper/__main__.py"],
+    ["run_scraper.py"],
     pathex=["."],
     binaries=[],
     datas=[],
-    hiddenimports=["feedparser", "sgmllib3k", "requests", "charset_normalizer", "certifi"],
+    hiddenimports=["feedparser", "sgmllib", "requests", "charset_normalizer", "certifi"],
     hookspath=[],
     runtime_hooks=[],
     excludes=["tkinter", "unittest", "pydoc", "doctest"],
