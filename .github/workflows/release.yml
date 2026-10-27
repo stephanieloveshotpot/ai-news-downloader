@@ -43,11 +43,31 @@ jobs:
           echo "$out"
           echo "version=$(echo "$out" | tail -n1)" >> "$GITHUB_OUTPUT"
 
+      - name: Make sure NSIS is available
+        shell: pwsh
+        run: |
+          $mk = Get-Command makensis -ErrorAction SilentlyContinue
+          if (-not $mk) {
+            $candidates = @("C:\Program Files (x86)\NSIS\makensis.exe", "C:\Program Files\NSIS\makensis.exe")
+            $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if (-not $found) { choco install nsis --no-progress -y | Out-Host; $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1 }
+            if (-not $found) { throw "makensis not found after install" }
+            Add-Content $env:GITHUB_PATH (Split-Path $found)
+          }
+          & (Get-Command makensis -ErrorAction SilentlyContinue).Source /VERSION 2>$null; if (-not $?) { "makensis will be on PATH next step" }
+
       - name: Compile the installer
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          makensis /V2 "/DVERSION=${{ steps.bundle.outputs.version }}" "/DPAYLOAD=..\payload" "/DOUTDIR=..\dist" installer\AIPulse.nsi
+          makensis /VERSION
+          $out = & makensis /V3 "/DVERSION=${{ steps.bundle.outputs.version }}" "/DPAYLOAD=..\payload" "/DOUTDIR=..\dist" installer\AIPulse.nsi 2>&1
+          $out | Out-Host
+          if ($LASTEXITCODE -ne 0) {
+            $tail = ($out | Select-Object -Last 8) -join " | "
+            Write-Host "::error::makensis failed: $tail"
+            exit 1
+          }
           Get-ChildItem dist
 
       - name: Silent-install smoke test
