@@ -46,15 +46,16 @@ jobs:
       - name: Make sure NSIS is available
         shell: pwsh
         run: |
-          $mk = Get-Command makensis -ErrorAction SilentlyContinue
-          if (-not $mk) {
-            $candidates = @("C:\Program Files (x86)\NSIS\makensis.exe", "C:\Program Files\NSIS\makensis.exe")
+          $candidates = @("C:\Program Files (x86)\NSIS\makensis.exe", "C:\Program Files\NSIS\makensis.exe")
+          $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $found) {
+            choco install nsis --no-progress -y | Out-Host
             $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-            if (-not $found) { choco install nsis --no-progress -y | Out-Host; $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1 }
-            if (-not $found) { throw "makensis not found after install" }
-            Add-Content $env:GITHUB_PATH (Split-Path $found)
           }
-          & (Get-Command makensis -ErrorAction SilentlyContinue).Source /VERSION 2>$null; if (-not $?) { "makensis will be on PATH next step" }
+          if (-not $found) { Write-Host "::error::makensis not found after install"; exit 1 }
+          "using $found"
+          Add-Content $env:GITHUB_PATH (Split-Path $found)
+          & $found /VERSION
 
       - name: Compile the installer
         shell: pwsh
