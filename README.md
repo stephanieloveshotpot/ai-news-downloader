@@ -8,7 +8,7 @@ Go to [Releases](https://github.com/stephanieloveshotpot/ai-news-downloader/rele
 
 ## What the installer does
 
-It's an [NSIS](https://nsis.sourceforge.io) script (`installer/AIPulse.nsi`) styled to match the app: one small dark window with the logo and a progress bar. It copies the app, then opens **AI Pulse's own first-run setup**, which is where the welcome, terms of service, privacy policy, look (theme, animations, background) and startup choices happen, in the app's own design. Declining the terms there uninstalls again.
+It's our own Windows app (`setup/`, WPF on .NET Framework 4.8, which ships with Windows 10 and 11), not a generic installer: a borderless rounded window with a drifting aurora background, a self-drawing pulse logo, a glowing progress bar with live percentages and an animated finish. One click on **Install** copies the app, then **AI Pulse's own first-run setup** opens: the welcome, terms of service, privacy policy, look (theme, animations, background) and startup choices all happen there, in the app's design. Declining the terms uninstalls again. *Install options* lets you pick the folder and the desktop shortcut. The uninstaller is the same app without the payload, with the same look.
 
 On the PC it creates:
 
@@ -20,21 +20,21 @@ On the PC it creates:
 | "Installed apps" entry so it can be removed from Windows Settings | `HKCU\...\Uninstall\AIPulse` |
 | Startup entry, set by the app when "launch with Windows" is on | `HKCU\...\CurrentVersion\Run\AI Pulse` |
 
-Switches: none = install then open setup; `/update /relaunch` = the in-app updater (same window titled "Updating AI Pulse", keeps everything, reopens the app); `/S` = silent; `/D=C:\path` = another folder. `makensis /DPREVIEW` builds a look-only installer that writes nothing, for design work.
+Switches: none = install then open setup; `/update /relaunch` = the in-app updater (same window titled "Updating AI Pulse", keeps everything, reopens the app); `/S` = silent; `/D=C:\path` = another folder (last switch). `--preview [--page welcome|options|progress|done|error|remove]` shows the window without installing anything, and `--snap out.png --snap-at 2000` saves a screenshot of it; `/S --extract-only /D=folder` only unpacks the app (for testing).
 
 The app's built-in updater downloads the newest `AI-Pulse-Setup-<version>.exe` from this repo's latest release, checks it against the `.sha256` file published next to it, shows an "Updating…" screen and runs it with `/update /relaunch`. **This repo must be public** (or at least its Releases must be reachable without a login) for installed apps to see updates. The uninstaller removes everything above and asks whether to delete the settings folder too.
 
 ## How it gets the app
 
-The app repo publishes an **app bundle** zip on every release (`AI-Pulse-app-win-x64-<version>.zip`: the unpacked app, the legal texts, and a `VERSION` file). `scripts/fetch-bundle.js` downloads the newest one into `payload/`, and NSIS packs `payload/app` into the setup `.exe`. The installer's version number always equals the app bundle's.
+The app repo publishes an **app bundle** zip on every release (`AI-Pulse-app-win-x64-<version>.zip`: the unpacked app, the legal texts, and a `VERSION` file). `scripts/fetch-bundle.js` downloads the newest one into `payload/`, and `setup/Setup` zips `payload/app` and embeds it, with the uninstaller, in the setup `.exe`. The installer's version number always equals the app bundle's.
 
 ```
-ai-news-desk (app + scraper)  --app bundle zip-->  this repo  --NSIS-->  AI-Pulse-Setup-<version>.exe
+ai-news-desk (app + scraper)  --app bundle zip-->  this repo  --setup/ (WPF)-->  AI-Pulse-Setup-<version>.exe
 ```
 
 ## Build it yourself (Windows)
 
-Needs Node.js 22+ and NSIS 3 (`makensis` on PATH; `winget install NSIS.NSIS`).
+Needs Node.js 22+ and the .NET SDK 8 or newer (`winget install Microsoft.DotNet.SDK.8`). `.\scriptsuild.ps1 -Preview` builds a look-only installer with a dummy app, for design work.
 
 ```powershell
 $env:APP_TOKEN = "<GitHub token that can read ai-news-desk>"   # the app repo is private
@@ -53,8 +53,9 @@ It needs one repository secret, **`APP_TOKEN`**: a fine-grained personal access 
 ## Layout
 
 ```
-installer/AIPulse.nsi     the installer: pages, files, folders, shortcuts, registry, uninstaller
-assets/                   icon.ico and the sidebar image shown on the welcome/finish pages
+setup/src/                the installer and uninstaller: window (MainWindow.xaml), install logic (Installer.cs)
+setup/Setup, setup/Uninstall  the two builds of it
+assets/icon.ico           the app icon
 scripts/fetch-bundle.js   downloads + unzips the newest app bundle into payload/
 scripts/build.ps1         one-command local build
 .github/workflows/        the automatic build + publish

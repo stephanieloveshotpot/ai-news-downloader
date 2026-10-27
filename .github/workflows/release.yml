@@ -3,7 +3,7 @@ name: Build and publish the installer
 # Every push to main (or a manual run) does this on Windows:
 #   1. downloads the newest app bundle from the ai-news-desk repo's Releases
 #      (needs the APP_TOKEN secret because that repo is private),
-#   2. compiles installer/AIPulse.nsi with NSIS,
+#   2. builds the custom installer in setup/ (WPF, .NET Framework 4.8),
 #   3. publishes AI-Pulse-Setup-<version>.exe to this repo's Releases,
 #      where <version> is the app bundle's version.
 #
@@ -67,47 +67,43 @@ jobs:
           echo "$out"
           echo "version=$(echo "$out" | tail -n1)" >> "$GITHUB_OUTPUT"
 
-      - name: Make sure NSIS is available
-        shell: pwsh
-        run: |
-          $candidates = @("C:\Program Files (x86)\NSIS\makensis.exe", "C:\Program Files\NSIS\makensis.exe")
-          $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $found) {
-            choco install nsis --no-progress -y | Out-Host
-            $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          }
-          if (-not $found) { Write-Host "::error::makensis not found after install"; exit 1 }
-          "using $found"
-          Add-Content $env:GITHUB_PATH (Split-Path $found)
-          & $found /VERSION
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
 
-      - name: Compile the installer
+      # The installer is our own WPF app (setup/), not NSIS: the uninstaller
+      # is built first, then Setup embeds it together with the zipped app.
+      - name: Build the installer
         shell: pwsh
         run: |
+          $v = "${{ steps.bundle.outputs.version }}"
+          dotnet build setup\Uninstall\Uninstall.csproj -c Release -p:Version=$v -o build\uninstall
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::uninstaller build failed"; exit 1 }
+          dotnet build setup\Setup\Setup.csproj -c Release -p:Version=$v "-p:PayloadDir=$PWD\payload\app" "-p:UninstallerExe=$PWD\build\uninstall\Uninstall AI Pulse.exe" -o build\setup
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::setup build failed"; exit 1 }
           New-Item -ItemType Directory -Force dist | Out-Null
-          makensis /VERSION
-          $out = & makensis /V3 "/DVERSION=${{ steps.bundle.outputs.version }}" "/DPAYLOAD=..\payload" "/DOUTDIR=..\dist" installer\AIPulse.nsi 2>&1
-          $out | Out-Host
-          if ($LASTEXITCODE -ne 0) {
-            $tail = ($out | Select-Object -Last 8) -join " | "
-            Write-Host "::error::makensis failed: $tail"
-            exit 1
-          }
-          Get-ChildItem dist
+          Copy-Item build\setup\AI-Pulse-Setup.exe "dist\AI-Pulse-Setup-$v.exe"
+          Get-ChildItem dist | ForEach-Object { "$($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
 
       - name: Silent-install smoke test
         shell: pwsh
         run: |
           $exe = Get-ChildItem dist\AI-Pulse-Setup-*.exe | Select-Object -First 1
-          Start-Process -Wait -FilePath $exe.FullName -ArgumentList "/S"
+          $p = Start-Process -Wait -PassThru -FilePath $exe.FullName -ArgumentList "/S"
+          if ($p.ExitCode -ne 0) { throw "silent install exited with $($p.ExitCode)" }
           $app = "$env:LOCALAPPDATA\Programs\AI Pulse\AI Pulse.exe"
           if (-not (Test-Path $app)) { throw "app not installed at $app" }
           if (-not (Test-Path "$env:LOCALAPPDATA\Programs\AI Pulse\Uninstall AI Pulse.exe")) { throw "uninstaller missing" }
           if (-not (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AIPulse" -ErrorAction SilentlyContinue)) { throw "Installed apps entry missing" }
           if (Get-Process "AI Pulse" -ErrorAction SilentlyContinue) { throw "a silent install must not start the app" }
           & "$env:LOCALAPPDATA\Programs\AI Pulse\resources\scraper\aipulse-scraper.exe" --list-sources
-          Start-Process -Wait -FilePath "$env:LOCALAPPDATA\Programs\AI Pulse\Uninstall AI Pulse.exe" -ArgumentList "/S"
+          if (-not (Test-Path "$([Environment]::GetFolderPath('Programs'))\AI Pulse\AI Pulse.lnk")) { throw "Start menu shortcut missing" }
+          $p = Start-Process -Wait -PassThru -FilePath "$env:LOCALAPPDATA\Programs\AI Pulse\Uninstall AI Pulse.exe" -ArgumentList "/S"
+          if ($p.ExitCode -ne 0) { throw "silent uninstall exited with $($p.ExitCode)" }
           if (Test-Path $app) { throw "uninstall left the app behind" }
+          if (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AIPulse" -ErrorAction SilentlyContinue) { throw "Installed apps entry left behind" }
+          Start-Sleep 4
+          if (Test-Path "$env:LOCALAPPDATA\Programs\AI Pulse") { throw "install folder left behind" }
           "silent install + uninstall OK"
 
       - name: Write the checksum the in-app updater verifies

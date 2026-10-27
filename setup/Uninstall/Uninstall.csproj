@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The uninstaller: same app, no payload. Build this first; Setup embeds it. -->
+  <Import Project="..\src\Common.props" />
+  <PropertyGroup>
+    <AssemblyName>Uninstall AI Pulse</AssemblyName>
+  </PropertyGroup>
+</Project>

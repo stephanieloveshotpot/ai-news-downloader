@@ -1,0 +1,29 @@
+<Project>
+  <!-- Shared by Setup and Uninstall: one WPF app on .NET Framework 4.8,
+       which ships with Windows 10 (1903+) and 11, so each build is a single exe. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AIPulseSetup</RootNamespace>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\assets\icon.ico</ApplicationIcon>
+    <ApplicationManifest>$(MSBuildThisFileDirectory)app.manifest</ApplicationManifest>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <DebugType>none</DebugType>
+    <Version Condition="'$(Version)' == ''">0.0.0</Version>
+    <Product>AI Pulse</Product>
+    <Company>Shako</Company>
+    <Copyright>© 2026 Shako</Copyright>
+    <StartupObject>AIPulseSetup.Program</StartupObject>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)*.cs" />
+    <Page Include="$(MSBuildThisFileDirectory)MainWindow.xaml" Generator="MSBuild:Compile" SubType="Designer" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.IO.Compression" />
+  </ItemGroup>
+</Project>

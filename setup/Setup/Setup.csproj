@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The installer: zips the unpacked app (PayloadDir) and embeds it, along
+       with the uninstaller built by ../Uninstall.
+
+       dotnet build Setup.csproj -c Release -p:Version=1.4.0
+         -p:PayloadDir=C:\...\payload\app -p:UninstallerExe=C:\...\Uninstall AI Pulse.exe -->
+  <Import Project="..\src\Common.props" />
+  <PropertyGroup>
+    <AssemblyName>AI-Pulse-Setup</AssemblyName>
+    <PayloadDir Condition="'$(PayloadDir)' == ''">$(MSBuildThisFileDirectory)..\..\payload\app</PayloadDir>
+    <UninstallerExe Condition="'$(UninstallerExe)' == ''">$(MSBuildThisFileDirectory)..\Uninstall\bin\Release\Uninstall AI Pulse.exe</UninstallerExe>
+    <PayloadZip>$(MSBuildThisFileDirectory)obj\payload.zip</PayloadZip>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="$(PayloadZip)" LogicalName="payload.zip" />
+    <EmbeddedResource Include="$(UninstallerExe)" LogicalName="uninstaller.exe" />
+  </ItemGroup>
+  <Target Name="ZipPayload" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(PayloadDir)\AI Pulse.exe')" Text="PayloadDir '$(PayloadDir)' has no AI Pulse.exe. Unzip the app bundle first." />
+    <Error Condition="!Exists('$(UninstallerExe)')" Text="Build ../Uninstall first: '$(UninstallerExe)' is missing." />
+    <MakeDir Directories="$(MSBuildThisFileDirectory)obj" />
+    <ZipDirectory SourceDirectory="$(PayloadDir)" DestinationFile="$(PayloadZip)" Overwrite="true" />
+  </Target>
+</Project>

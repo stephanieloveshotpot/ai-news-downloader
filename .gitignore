@@ -2,3 +2,7 @@ payload/
 dist/
 node_modules/
 *.log
+build/
+setup/**/bin/
+setup/**/obj/
+setup/out/
