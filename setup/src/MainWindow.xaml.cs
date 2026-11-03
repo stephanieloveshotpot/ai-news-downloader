@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,7 +34,7 @@ namespace AIPulseSetup
             foreach (var p in new FrameworkElement[] { WelcomePage, ProgressPage, DonePage, ErrorPage, RemovePage })
                 p.RenderTransform = new TranslateTransform();
 
-            Card.SizeChanged += (s, e) => Card.Clip = new RectangleGeometry(new Rect(e.NewSize), 24, 24);
+            Card.SizeChanged += (s, e) => Card.Clip = new RectangleGeometry(new Rect(e.NewSize), 28, 28);
             TitleBar.MouseLeftButtonDown += (s, e) => DragMove();
             Card.MouseLeftButtonDown += (s, e) => { if (!(e.OriginalSource is TextBox)) { try { DragMove(); } catch { } } };
             MinBtn.Click += (s, e) => WindowState = WindowState.Minimized;
@@ -72,12 +74,17 @@ namespace AIPulseSetup
             }
         }
 
-        // Drifting aurora, floating logo, the pulse line drawing itself, glowing.
+        // Drifting aurora, orbiting rings, floating logo, the pulse line drawing itself.
         void StartAmbient()
         {
-            Drift(B1, -120, -170, -40, -110, 9000);
-            Drift(B2, 360, 180, 260, 120, 11000);
-            Drift(B3, 420, -120, 340, -60, 8000);
+            Drift(B1, -150, -200, -40, -110, 9000);
+            Drift(B2, 420, 220, 300, 130, 11000);
+            Drift(B3, 470, -140, 360, -60, 8000);
+            Drift(B4, -80, 300, 40, 220, 12000);
+
+            Spin(OrbitARot, 360, 24000);
+            Spin(OrbitBRot, -360, 16000);
+            Spin(SatRot, 360, 7000);
 
             var floatAnim = new DoubleAnimation(0, -6, TimeSpan.FromMilliseconds(2600)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
             LogoFloat.BeginAnimation(TranslateTransform.YProperty, floatAnim);
@@ -92,8 +99,10 @@ namespace AIPulseSetup
             draw.KeyFrames.Add(new EasingDoubleKeyFrame(-34, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2800)), new CubicEase { EasingMode = EasingMode.EaseIn }));
             PulseLine.BeginAnimation(Shape.StrokeDashOffsetProperty, draw);
 
-            var shimmer = new DoubleAnimation(-100, 620, TimeSpan.FromMilliseconds(1500)) { RepeatBehavior = RepeatBehavior.Forever };
-            ShimmerX.BeginAnimation(TranslateTransform.XProperty, shimmer);
+            SeedStars();
+            clock.Start();
+            CompositionTarget.Rendering += OnFrame;
+            Closed += (s, e) => CompositionTarget.Rendering -= OnFrame;
         }
 
         static void Drift(UIElement el, double x1, double y1, double x2, double y2, int ms)
@@ -101,6 +110,160 @@ namespace AIPulseSetup
             var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
             el.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(x1, x2, TimeSpan.FromMilliseconds(ms)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease });
             el.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(y1, y2, TimeSpan.FromMilliseconds(ms * 1.3)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease });
+        }
+
+        static void Spin(RotateTransform r, double by, int ms) =>
+            r.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, by, TimeSpan.FromMilliseconds(ms)) { RepeatBehavior = RepeatBehavior.Forever });
+
+        // ---------------- particles, the progress ring and the burst ----------------
+
+        class Mote { public Shape El; public double X, Y, Vx, Vy, Life, Age, Phase, Base, Spin, Angle; }
+
+        static readonly Random rng = new Random();
+        static readonly Color[] Palette =
+        {
+            Color.FromRgb(0x3D, 0x5A, 0xFE), Color.FromRgb(0x8B, 0x5C, 0xF6), Color.FromRgb(0xF0, 0x6F, 0xA4),
+            Color.FromRgb(0xFF, 0x9A, 0x55), Color.FromRgb(0x22, 0xD3, 0xEE), Colors.White,
+        };
+        readonly List<Mote> stars = new List<Mote>();
+        readonly List<Mote> sparks = new List<Mote>();
+        readonly Stopwatch clock = new Stopwatch();
+        double lastT, shown, target;
+
+        const double W = 680, H = 460;                          // the card
+        static readonly Point LogoCentre = new Point(W / 2, 32 + 85);
+
+        void SeedStars()
+        {
+            for (int i = 0; i < 70; i++)
+            {
+                var size = 0.8 + rng.NextDouble() * 2.2;
+                var c = rng.NextDouble() < 0.7 ? Colors.White : Palette[rng.Next(Palette.Length - 1)];
+                var m = new Mote
+                {
+                    El = new Ellipse { Width = size, Height = size, Fill = new SolidColorBrush(c) },
+                    X = rng.NextDouble() * W, Y = rng.NextDouble() * H,
+                    Vx = (rng.NextDouble() - 0.5) * 4, Vy = -(3 + rng.NextDouble() * 9) * (size / 2),
+                    Phase = rng.NextDouble() * Math.PI * 2, Base = 0.25 + rng.NextDouble() * 0.6, Spin = 0.8 + rng.NextDouble() * 2.2,
+                };
+                Canvas.SetLeft(m.El, m.X); Canvas.SetTop(m.El, m.Y);
+                Stars.Children.Add(m.El);
+                stars.Add(m);
+            }
+        }
+
+        void OnFrame(object sender, EventArgs e)
+        {
+            var t = clock.Elapsed.TotalSeconds;
+            var dt = Math.Min(0.05, t - lastT);
+            lastT = t;
+
+            foreach (var m in stars)
+            {
+                m.X += m.Vx * dt; m.Y += m.Vy * dt;
+                if (m.Y < -4) { m.Y = H + 4; m.X = rng.NextDouble() * W; }
+                if (m.X < -4) m.X = W + 4; else if (m.X > W + 4) m.X = -4;
+                m.El.Opacity = m.Base * (0.55 + 0.45 * Math.Sin(t * m.Spin + m.Phase));
+                Canvas.SetLeft(m.El, m.X); Canvas.SetTop(m.El, m.Y);
+            }
+
+            for (int i = sparks.Count - 1; i >= 0; i--)
+            {
+                var m = sparks[i];
+                m.Age += dt;
+                if (m.Age >= m.Life) { Burst.Children.Remove(m.El); sparks.RemoveAt(i); continue; }
+                m.Vy += 260 * dt; m.Vx *= 1 - 1.2 * dt; m.Vy *= 1 - 0.6 * dt;
+                m.X += m.Vx * dt; m.Y += m.Vy * dt; m.Angle += m.Spin * dt;
+                m.El.Opacity = 1 - Math.Pow(m.Age / m.Life, 2);
+                ((RotateTransform)m.El.RenderTransform).Angle = m.Angle;
+                Canvas.SetLeft(m.El, m.X); Canvas.SetTop(m.El, m.Y);
+            }
+
+            // ease the ring toward the real progress so it glides between updates
+            if (Math.Abs(target - shown) > 0.0005)
+            {
+                shown += (target - shown) * Math.Min(1, dt * 9);
+                if (Math.Abs(target - shown) <= 0.0005) shown = target;
+                DrawArc(shown);
+            }
+        }
+
+        void DrawArc(double f)
+        {
+            PercentText.Text = Math.Round(f * 100).ToString();
+            const double r = 75, c = 85;
+            if (f <= 0.001) { ProgressArc.Data = null; return; }
+            if (f >= 0.999) { ProgressArc.Data = new EllipseGeometry(new Point(c, c), r, r); return; }
+            var a = f * 2 * Math.PI;
+            var fig = new PathFigure { StartPoint = new Point(c, c - r) };
+            fig.Segments.Add(new ArcSegment(new Point(c + r * Math.Sin(a), c - r * Math.Cos(a)), new Size(r, r), 0, f > 0.5, SweepDirection.Clockwise, true));
+            ProgressArc.Data = new PathGeometry(new[] { fig });
+        }
+
+        // Confetti and a ring of light from behind the logo.
+        void Celebrate()
+        {
+            for (int i = 0; i < 90; i++)
+            {
+                var a = rng.NextDouble() * Math.PI * 2;
+                var speed = 160 + rng.NextDouble() * 320;
+                Shape el = rng.NextDouble() < 0.5
+                    ? (Shape)new Rectangle { Width = 4 + rng.NextDouble() * 5, Height = 2.5 + rng.NextDouble() * 3, RadiusX = 1, RadiusY = 1 }
+                    : new Ellipse { Width = 3 + rng.NextDouble() * 4, Height = 3 + rng.NextDouble() * 4 };
+                el.Fill = new SolidColorBrush(Palette[rng.Next(Palette.Length)]);
+                el.RenderTransform = new RotateTransform();
+                var m = new Mote
+                {
+                    El = el, X = LogoCentre.X, Y = LogoCentre.Y,
+                    Vx = Math.Cos(a) * speed, Vy = Math.Sin(a) * speed - 120,
+                    Life = 1.2 + rng.NextDouble() * 1.1, Spin = (rng.NextDouble() - 0.5) * 900,
+                };
+                Canvas.SetLeft(el, m.X); Canvas.SetTop(el, m.Y);
+                Burst.Children.Add(el);
+                sparks.Add(m);
+            }
+            var sc = new ScaleTransform(1, 1);
+            var wave = new Ellipse { Width = 100, Height = 100, StrokeThickness = 3, Stroke = (Brush)FindResource("Grad"), RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = sc };
+            Canvas.SetLeft(wave, LogoCentre.X - 50); Canvas.SetTop(wave, LogoCentre.Y - 50);
+            Burst.Children.Add(wave);
+            AnimateScale(sc, 1, 4.5, 900, new CubicEase { EasingMode = EasingMode.EaseOut });
+            var fade = new DoubleAnimation(0.9, 0, TimeSpan.FromMilliseconds(900));
+            fade.Completed += (s, e) => Burst.Children.Remove(wave);
+            wave.BeginAnimation(OpacityProperty, fade);
+        }
+
+        // "What's inside" lines that rotate while it installs.
+        static readonly string[] Features =
+        {
+            "Scanning 50+ sources, live",
+            "Instant AI briefs on any story",
+            "Key points in one click",
+            "A For you feed that learns your topics",
+            "Full articles, without the clutter",
+            "Desktop alerts for the big stories",
+        };
+        DispatcherTimer ticker;
+        int feature;
+
+        void StartTicker(string only = null)
+        {
+            ticker?.Stop();
+            feature = 0;
+            FeatureText.Text = only ?? Features[0];
+            if (only != null) return;
+            ticker = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(2400) };
+            ticker.Tick += (s, e) =>
+            {
+                var o = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(180));
+                o.Completed += (a, b) =>
+                {
+                    feature = (feature + 1) % Features.Length;
+                    FeatureText.Text = Features[feature];
+                    FeatureText.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)));
+                };
+                FeatureText.BeginAnimation(OpacityProperty, o);
+            };
+            ticker.Start();
         }
 
         // ---------------- pages ----------------
@@ -130,7 +293,7 @@ namespace AIPulseSetup
             OptionsPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
             OptionsBtn.Content = open ? "Hide options" : "Install options";
             // grow the window to make room for the panel, keeping it centred
-            var to = open ? 560.0 : 440.0;
+            var to = open ? 646.0 : 500.0;
             var top = Top - (to - ActualHeight) / 2;
             BeginAnimation(HeightProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(300)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             BeginAnimation(TopProperty, new DoubleAnimation(top, TimeSpan.FromMilliseconds(300)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
@@ -157,6 +320,8 @@ namespace AIPulseSetup
             ProgressTitle.Text = opts.Update ? "Updating AI Pulse" : "Installing AI Pulse";
             StatusText.Text = opts.Update ? "Installing version " + Installer.Version + "…" : "Getting ready…";
             SetProgress(0, null, instant: true);
+            ShowRing(true);
+            StartTicker();
             Show(ProgressPage);
 
             var o = new Options { Dir = DirBox.Text.Trim(), DesktopShortcut = DesktopBox.IsChecked == true, Update = opts.Update, Relaunch = opts.Relaunch };
@@ -173,7 +338,7 @@ namespace AIPulseSetup
                 ShowDone(opts.Update ? "Updated to " + Installer.Version : "AI Pulse is ready", opts.Update ? "Reopening AI Pulse…" : "Opening it now. Set it up in a few clicks.");
                 if (!opts.Preview) Installer.LaunchApp(o, fresh: !opts.Update);
                 busy = false;
-                if (opts.SnapFile == null) { await Task.Delay(opts.Update ? 1200 : 1800); FadeAndClose(); }
+                if (opts.SnapFile == null) { await Task.Delay(opts.Update ? 1400 : 2200); FadeAndClose(); }
             }
             catch (Exception ex)
             {
@@ -191,6 +356,8 @@ namespace AIPulseSetup
             Footnote.Text = "";
             ProgressTitle.Text = "Removing AI Pulse";
             SetProgress(0, "Getting ready…", instant: true);
+            ShowRing(true);
+            StartTicker("Cleaning up shortcuts and files");
             Show(ProgressPage);
             var deleteData = DeleteDataBox.IsChecked == true;
             try
@@ -198,7 +365,7 @@ namespace AIPulseSetup
                 if (opts.Preview) await FakeWork(1);
                 else await Task.Run(() => Installer.Uninstall(deleteData, Report));
                 await Task.Delay(250);
-                ShowDone("AI Pulse was removed", deleteData ? "Your settings were deleted too. Thanks for trying it." : "Your settings are kept in case you come back.");
+                ShowDone("AI Pulse was removed", deleteData ? "Your settings were deleted too. Thanks for trying it." : "Your settings are kept in case you come back.", celebrate: false);
                 busy = false;
                 if (opts.SnapFile == null)
                 {
@@ -220,27 +387,34 @@ namespace AIPulseSetup
 
         void SetProgress(double f, string status, bool instant = false)
         {
-            f = Math.Max(0, Math.Min(1, f));
-            var track = Math.Max(1, ((FrameworkElement)BarFill.Parent).ActualWidth);
-            var to = track * f;
-            if (instant) { BarFill.BeginAnimation(WidthProperty, null); BarFill.Width = to; }
-            else BarFill.BeginAnimation(WidthProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(260)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            PercentText.Text = Math.Round(f * 100) + "%";
+            target = Math.Max(0, Math.Min(1, f));
+            if (instant) { shown = target; DrawArc(shown); }
             if (status != null) StatusText.Text = status;
         }
 
-        void ShowDone(string title, string text)
+        void ShowRing(bool on)
         {
+            Animate(ArcTrack, OpacityProperty, ArcTrack.Opacity, on ? 1 : 0, 300);
+            Animate(OrbitA, OpacityProperty, OrbitA.Opacity, on ? 0.25 : 0.55, 400);
+        }
+
+        void ShowDone(string title, string text, bool celebrate = true)
+        {
+            ticker?.Stop();
+            target = 1;
             DoneTitle.Text = title;
             DoneText.Text = text;
             Show(DonePage);
-            CheckRing.BeginAnimation(Shape.StrokeDashOffsetProperty, new DoubleAnimation(60, 0, TimeSpan.FromMilliseconds(600)) { BeginTime = TimeSpan.FromMilliseconds(150), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            CheckTick.BeginAnimation(Shape.StrokeDashOffsetProperty, new DoubleAnimation(14, 0, TimeSpan.FromMilliseconds(350)) { BeginTime = TimeSpan.FromMilliseconds(650), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            AnimateScale(LogoScale, 1, 1.08, 260, new SineEase(), 0, autoReverse: true);
+            if (celebrate) Celebrate();
+            ArcTrack.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(500)) { BeginTime = TimeSpan.FromMilliseconds(400) });
+            AnimateScale(LogoScale, 1, 1.12, 280, new SineEase(), 0, autoReverse: true);
         }
 
         void ShowError(string message)
         {
+            ticker?.Stop();
+            ShowRing(false);
+            target = 0;
             ErrorText.Text = message;
             Show(ErrorPage);
         }
