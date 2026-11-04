@@ -254,7 +254,7 @@
           <TextBlock Text="Quillwave" FontFamily="{StaticResource Display}" FontSize="40" HorizontalAlignment="Center" Foreground="{StaticResource TitleGrad}"/>
           <TextBlock Text="The day's AI news, briefed and personalised, on your desktop." Foreground="{StaticResource Muted}" FontSize="14" HorizontalAlignment="Center" Margin="0,2,0,0"/>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
-            <Border Style="{StaticResource Chip}"><TextBlock Text="50+ sources" FontSize="11.5" Foreground="#C9D0DC"/></Border>
+            <Border Style="{StaticResource Chip}"><TextBlock Text="Nearly 100 sources" FontSize="11.5" Foreground="#C9D0DC"/></Border>
             <Border Style="{StaticResource Chip}"><TextBlock Text="Instant AI briefs" FontSize="11.5" Foreground="#C9D0DC"/></Border>
             <Border Style="{StaticResource Chip}"><TextBlock Text="A feed made for you" FontSize="11.5" Foreground="#C9D0DC"/></Border>
           </StackPanel>
@@ -292,7 +292,7 @@
           <Border Style="{StaticResource Chip}" HorizontalAlignment="Center" Margin="0,18,0,0" Padding="14,7">
             <StackPanel Orientation="Horizontal">
               <Ellipse Width="6" Height="6" Fill="#B4BCFF" VerticalAlignment="Center" Margin="0,0,8,0"/>
-              <TextBlock x:Name="FeatureText" Text="Scanning 50+ sources, live" Foreground="#C9D0DC" FontSize="12"/>
+              <TextBlock x:Name="FeatureText" Text="Scanning nearly 100 sources, live" Foreground="#C9D0DC" FontSize="12"/>
             </StackPanel>
           </Border>
         </StackPanel>

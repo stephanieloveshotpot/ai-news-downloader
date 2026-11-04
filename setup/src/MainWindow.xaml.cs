@@ -235,7 +235,7 @@ namespace AIPulseSetup
         // "What's inside" lines that rotate while it installs.
         static readonly string[] Features =
         {
-            "Scanning 50+ sources, live",
+            "Scanning nearly 100 sources, live",
             "Instant AI briefs on any story",
             "Key points in one click",
             "A For you feed that learns your topics",
