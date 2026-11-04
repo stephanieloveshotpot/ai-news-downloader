@@ -1,5 +1,5 @@
 // Everything the installer and uninstaller actually do to the PC.
-// Per-user only: %LOCALAPPDATA%\Programs\AI Pulse, HKCU, the user's Start
+// Per-user only: %LOCALAPPDATA%\Programs\Quillwave, HKCU, the user's Start
 // menu and desktop. Nothing here needs administrator rights.
 using System;
 using System.Diagnostics;
@@ -46,14 +46,17 @@ namespace AIPulseSetup
 
     public static class Installer
     {
-        public const string AppName = "AI Pulse";
-        public const string AppExe = "AI Pulse.exe";
-        public const string UninstallerExe = "Uninstall AI Pulse.exe";
+        public const string AppName = "Quillwave";
+        public const string AppExe = "Quillwave.exe";
+        public const string UninstallerExe = "Uninstall Quillwave.exe";
         const string AppId = "AIPulse";
         const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + AppId;
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         const string Publisher = "Shako";
-        const string Url = "https://github.com/stephanieloveshotpot/ai-news-desk";
+        const string Url = "https://quillwave-app.web.app";
+        // The app was called AI Pulse before 1.8: same registry id and data
+        // folder, but its exe, shortcuts and startup entry had the old name.
+        const string LegacyName = "AI Pulse";
 
         public static string Version
         {
@@ -68,6 +71,16 @@ namespace AIPulseSetup
         public static string DataDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ai-pulse");
         static string StartMenuDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppName);
         static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), AppName + ".lnk");
+        static string LegacyStartMenuDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), LegacyName);
+        static string LegacyDesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), LegacyName + ".lnk");
+
+        // Shortcuts and the startup entry from before the rename.
+        static void RemoveLegacy()
+        {
+            try { if (File.Exists(LegacyDesktopLink)) File.Delete(LegacyDesktopLink); } catch { }
+            try { if (Directory.Exists(LegacyStartMenuDir)) Directory.Delete(LegacyStartMenuDir, true); } catch { }
+            try { using (var k = Registry.CurrentUser.OpenSubKey(RunKey, true)) k?.DeleteValue(LegacyName, false); } catch { }
+        }
 
         public static string DefaultDir()
         {
@@ -96,7 +109,7 @@ namespace AIPulseSetup
             var staging = Path.Combine(dir, ".staging");
             if (Directory.Exists(staging)) Directory.Delete(staging, true);
             Directory.CreateDirectory(staging);
-            bool hadDesktopLink = File.Exists(DesktopLink);
+            bool hadDesktopLink = File.Exists(DesktopLink) || File.Exists(LegacyDesktopLink);
 
             // 1. unpack into a staging folder, with real byte-level progress
             using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("payload.zip"))
@@ -154,6 +167,7 @@ namespace AIPulseSetup
 
             // 4. shortcuts
             progress(0.93, "Adding shortcuts…");
+            RemoveLegacy();
             var exe = Path.Combine(dir, AppExe);
             Directory.CreateDirectory(StartMenuDir);
             Shortcut(Path.Combine(StartMenuDir, AppName + ".lnk"), exe, dir);
@@ -180,7 +194,7 @@ namespace AIPulseSetup
             progress(1, "Done");
         }
 
-        // After a fresh install AI Pulse opens its own first-run setup;
+        // After a fresh install Quillwave opens its own first-run setup;
         // after an update it simply starts again.
         public static void LaunchApp(Options o, bool fresh)
         {
@@ -203,6 +217,7 @@ namespace AIPulseSetup
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\" + AppId, false);
             if (File.Exists(DesktopLink)) File.Delete(DesktopLink);
             if (Directory.Exists(StartMenuDir)) Directory.Delete(StartMenuDir, true);
+            RemoveLegacy();
 
             progress(0.45, "Removing the app…");
             var self = Process.GetCurrentProcess().MainModule.FileName;
@@ -238,7 +253,7 @@ namespace AIPulseSetup
 
         static void StopApp()
         {
-            foreach (var p in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(AppExe)))
+            foreach (var p in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(AppExe)).Concat(Process.GetProcessesByName(LegacyName)))
             {
                 try { p.Kill(); p.WaitForExit(5000); } catch { /* already gone */ }
             }

@@ -1,13 +1,13 @@
-// AI Pulse setup and uninstaller (same code, two builds).
+// Quillwave setup and uninstaller (same code, two builds).
 // The setup build carries the app (payload.zip) and the uninstaller as
 // embedded resources; the uninstall build carries neither, which is how each
 // one knows what it is.
 //
-//   AI-Pulse-Setup.exe                    install, then open AI Pulse's first-run setup
-//   AI-Pulse-Setup.exe /update /relaunch  used by the in-app updater
-//   AI-Pulse-Setup.exe /S [/relaunch]     silent
-//   AI-Pulse-Setup.exe /D=C:\path         install somewhere else (last switch)
-//   Uninstall AI Pulse.exe [/S]           remove (silent keeps settings)
+//   Quillwave-Setup.exe                    install, then open Quillwave's first-run setup
+//   Quillwave-Setup.exe /update /relaunch  used by the in-app updater
+//   Quillwave-Setup.exe /S [/relaunch]     silent
+//   Quillwave-Setup.exe /D=C:\path         install somewhere else (last switch)
+//   Uninstall Quillwave.exe [/S]           remove (silent keeps settings)
 //   /S --extract-only /D=C:\path          test: only unpack the app into a folder
 //   --preview [--page welcome|options|progress|done|error|remove] [--snap out.png --snap-at ms]
 //                                         look-only mode for design work: writes nothing

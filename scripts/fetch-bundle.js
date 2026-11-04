@@ -1,4 +1,4 @@
-// Downloads the newest app bundle (AI-Pulse-app-win-x64-<version>.zip) from
+// Downloads the newest app bundle (Quillwave-app-win-x64-<version>.zip) from
 // the ai-news-desk repo's GitHub Releases and unzips it into ./payload.
 //
 //   node scripts/fetch-bundle.js            # latest release
@@ -39,8 +39,9 @@ function get(url, headers = {}, redirects = 5) {
   const api = `https://api.github.com/repos/${OWNER}/${REPO}/releases/${tag ? "tags/" + tag : "latest"}`;
   const auth = TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
   const release = JSON.parse((await get(api, { ...auth, Accept: "application/vnd.github+json" })).toString());
-  const asset = (release.assets || []).find((a) => /^AI-Pulse-app-win-x64-.*\.zip$/.test(a.name));
-  if (!asset) throw new Error(`Release ${release.tag_name} has no AI-Pulse-app-win-x64-*.zip asset`);
+  // Quillwave-app-* since 1.8, AI-Pulse-app-* before the rename
+  const asset = (release.assets || []).find((a) => /^(?:Quillwave|AI-Pulse)-app-win-x64-.*\.zip$/.test(a.name));
+  if (!asset) throw new Error(`Release ${release.tag_name} has no Quillwave-app-win-x64-*.zip asset`);
 
   console.log(`Downloading ${asset.name} from ${release.tag_name} (${(asset.size / 1e6).toFixed(1)} MB)`);
   let buf;
@@ -58,7 +59,7 @@ function get(url, headers = {}, redirects = 5) {
   }
   fs.rmSync(zip);
 
-  for (const must of ["app/AI Pulse.exe", "legal/TERMS.txt", "legal/PRIVACY.txt", "VERSION"]) {
+  for (const must of ["app/Quillwave.exe", "legal/TERMS.txt", "legal/PRIVACY.txt", "VERSION"]) {
     if (!fs.existsSync(path.join(PAYLOAD, must))) throw new Error(`Bundle is missing ${must}`);
   }
   const version = fs.readFileSync(path.join(PAYLOAD, "VERSION"), "utf8").trim();

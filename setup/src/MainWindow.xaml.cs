@@ -28,7 +28,7 @@ namespace AIPulseSetup
             opts = o;
             isSetup = setupMode;
             InitializeComponent();
-            Title = isSetup ? "AI Pulse Setup" : "Remove AI Pulse";
+            Title = isSetup ? "Quillwave Setup" : "Remove Quillwave";
             VersionText.Text = "Version " + Installer.Version;
             DirBox.Text = o.Dir;
             foreach (var p in new FrameworkElement[] { WelcomePage, ProgressPage, DonePage, ErrorPage, RemovePage })
@@ -302,7 +302,7 @@ namespace AIPulseSetup
 
         void Browse()
         {
-            using (var dlg = new System.Windows.Forms.FolderBrowserDialog { Description = "Choose where to install AI Pulse", SelectedPath = DirBox.Text, ShowNewFolderButton = true })
+            using (var dlg = new System.Windows.Forms.FolderBrowserDialog { Description = "Choose where to install Quillwave", SelectedPath = DirBox.Text, ShowNewFolderButton = true })
             {
                 if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                     DirBox.Text = dlg.SelectedPath.EndsWith(Installer.AppName, StringComparison.OrdinalIgnoreCase) ? dlg.SelectedPath : System.IO.Path.Combine(dlg.SelectedPath, Installer.AppName);
@@ -317,7 +317,7 @@ namespace AIPulseSetup
             busy = true;
             CloseBtn.IsEnabled = false;
             Footnote.Text = "";
-            ProgressTitle.Text = opts.Update ? "Updating AI Pulse" : "Installing AI Pulse";
+            ProgressTitle.Text = opts.Update ? "Updating Quillwave" : "Installing Quillwave";
             StatusText.Text = opts.Update ? "Installing version " + Installer.Version + "…" : "Getting ready…";
             SetProgress(0, null, instant: true);
             ShowRing(true);
@@ -335,7 +335,7 @@ namespace AIPulseSetup
                 }
                 else await Task.Run(() => Installer.Install(o, Report, cts.Token));
                 await Task.Delay(250);
-                ShowDone(opts.Update ? "Updated to " + Installer.Version : "AI Pulse is ready", opts.Update ? "Reopening AI Pulse…" : "Opening it now. Set it up in a few clicks.");
+                ShowDone(opts.Update ? "Updated to " + Installer.Version : "Quillwave is ready", opts.Update ? "Reopening Quillwave…" : "Opening it now. Set it up in a few clicks.");
                 if (!opts.Preview) Installer.LaunchApp(o, fresh: !opts.Update);
                 busy = false;
                 if (opts.SnapFile == null) { await Task.Delay(opts.Update ? 1400 : 2200); FadeAndClose(); }
@@ -354,7 +354,7 @@ namespace AIPulseSetup
             busy = true;
             CloseBtn.IsEnabled = false;
             Footnote.Text = "";
-            ProgressTitle.Text = "Removing AI Pulse";
+            ProgressTitle.Text = "Removing Quillwave";
             SetProgress(0, "Getting ready…", instant: true);
             ShowRing(true);
             StartTicker("Cleaning up shortcuts and files");
@@ -365,7 +365,7 @@ namespace AIPulseSetup
                 if (opts.Preview) await FakeWork(1);
                 else await Task.Run(() => Installer.Uninstall(deleteData, Report));
                 await Task.Delay(250);
-                ShowDone("AI Pulse was removed", deleteData ? "Your settings were deleted too. Thanks for trying it." : "Your settings are kept in case you come back.", celebrate: false);
+                ShowDone("Quillwave was removed", deleteData ? "Your settings were deleted too. Thanks for trying it." : "Your settings are kept in case you come back.", celebrate: false);
                 busy = false;
                 if (opts.SnapFile == null)
                 {
@@ -422,13 +422,13 @@ namespace AIPulseSetup
         static string Friendly(Exception ex)
         {
             if (ex is UnauthorizedAccessException || ex is IOException)
-                return "A file is in use or can't be written. Close AI Pulse if it's open and try again.\n(" + ex.Message + ")";
+                return "A file is in use or can't be written. Close Quillwave if it's open and try again.\n(" + ex.Message + ")";
             return ex.Message;
         }
 
         async Task FakeWork(double upTo)
         {
-            string[] files = { "AI Pulse.exe", "resources.pak", "app.asar", "aipulse-scraper.exe", "icudtl.dat", "locales" };
+            string[] files = { "Quillwave.exe", "resources.pak", "app.asar", "aipulse-scraper.exe", "icudtl.dat", "locales" };
             for (int i = 0; i <= 100 * upTo; i += 2)
             {
                 SetProgress(i / 100.0, i < 88 ? "Unpacking " + files[(i / 15) % files.Length] : i < 95 ? "Adding shortcuts…" : "Registering with Windows…");

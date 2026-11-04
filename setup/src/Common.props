@@ -15,7 +15,7 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <DebugType>none</DebugType>
     <Version Condition="'$(Version)' == ''">0.0.0</Version>
-    <Product>AI Pulse</Product>
+    <Product>Quillwave</Product>
     <Company>Shako</Company>
     <Copyright>© 2026 Shako</Copyright>
     <StartupObject>AIPulseSetup.Program</StartupObject>
