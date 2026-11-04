@@ -80,6 +80,26 @@ namespace AIPulseSetup
             try { if (File.Exists(LegacyDesktopLink)) File.Delete(LegacyDesktopLink); } catch { }
             try { if (Directory.Exists(LegacyStartMenuDir)) Directory.Delete(LegacyStartMenuDir, true); } catch { }
             try { using (var k = Registry.CurrentUser.OpenSubKey(RunKey, true)) k?.DeleteValue(LegacyName, false); } catch { }
+            // a loose "AI Pulse" shortcut straight in the Start menu (older installers)
+            var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+            try { var loose = Path.Combine(programs, LegacyName + ".lnk"); if (File.Exists(loose)) File.Delete(loose); } catch { }
+        }
+
+        // Any other Quillwave shortcut (one the user made, or a pinned one)
+        // gets pointed at the app with its icon, so none of them show up blank.
+        static void FixLooseShortcuts(string exe)
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var pinned = Path.Combine(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar");
+            var places = new[] {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppName + ".lnk"),
+                Path.Combine(pinned, AppName + ".lnk"),
+                Path.Combine(pinned, LegacyName + ".lnk"),
+            };
+            foreach (var lnk in places)
+            {
+                try { if (File.Exists(lnk)) Shortcut(lnk, exe, Path.GetDirectoryName(exe)); } catch { }
+            }
         }
 
         public static string DefaultDir()
@@ -173,6 +193,7 @@ namespace AIPulseSetup
             Shortcut(Path.Combine(StartMenuDir, AppName + ".lnk"), exe, dir);
             Shortcut(Path.Combine(StartMenuDir, "Uninstall " + AppName + ".lnk"), Path.Combine(dir, UninstallerExe), dir);
             if (o.Update ? hadDesktopLink : o.DesktopShortcut) Shortcut(DesktopLink, exe, dir);
+            FixLooseShortcuts(exe);
 
             // 5. "Installed apps" entry
             progress(0.97, "Registering with Windows…");
