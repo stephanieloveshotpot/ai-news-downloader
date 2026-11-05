@@ -17,6 +17,7 @@
     <Version Condition="'$(Version)' == ''">0.0.0</Version>
     <Product>Quillwave</Product>
     <Company>Shako</Company>
+    <NeutralLanguage>en</NeutralLanguage>
     <Copyright>© 2026 Shako</Copyright>
     <StartupObject>AIPulseSetup.Program</StartupObject>
   </PropertyGroup>

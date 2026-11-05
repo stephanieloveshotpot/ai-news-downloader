@@ -180,10 +180,8 @@ namespace AIPulseSetup
 
             if (o.ExtractOnly) { progress(1, "Done"); return; }
 
-            // 3. the uninstaller travels inside the setup
-            using (var u = Assembly.GetExecutingAssembly().GetManifestResourceStream("uninstaller.exe"))
-            using (var f = File.Create(Path.Combine(dir, UninstallerExe)))
-                u.CopyTo(f);
+            // 3. the uninstaller came with the app files, inside payload.zip
+            if (!File.Exists(Path.Combine(dir, UninstallerExe))) throw new FileNotFoundException("The package has no uninstaller.", UninstallerExe);
 
             // 4. shortcuts
             progress(0.93, "Adding shortcuts…");
