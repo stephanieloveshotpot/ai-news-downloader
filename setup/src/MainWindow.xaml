@@ -42,15 +42,8 @@
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Grid>
-              <Border x:Name="halo" CornerRadius="18" Background="{TemplateBinding Background}" Opacity="0.55" Margin="-2">
-                <Border.Effect><BlurEffect Radius="22"/></Border.Effect>
-                <Border.Triggers>
-                  <EventTrigger RoutedEvent="Loaded">
-                    <BeginStoryboard><Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                      <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.35" To="0.8" Duration="0:0:1.6"><DoubleAnimation.EasingFunction><SineEase/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                    </Storyboard></BeginStoryboard>
-                  </EventTrigger>
-                </Border.Triggers>
+              <Border x:Name="halo" CornerRadius="18" Background="{TemplateBinding Background}" Opacity="0.35" Margin="-2">
+                <Border.Effect><BlurEffect Radius="18"/></Border.Effect>
               </Border>
               <Border x:Name="b" CornerRadius="18" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" BorderBrush="#40FFFFFF" BorderThickness="1">
                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -59,8 +52,8 @@
             <ControlTemplate.Triggers>
               <EventTrigger RoutedEvent="MouseEnter">
                 <BeginStoryboard><Storyboard>
-                  <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.06" Duration="0:0:0.25"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                  <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.06" Duration="0:0:0.25"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                  <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.02" Duration="0:0:0.18"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                  <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.02" Duration="0:0:0.18"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                 </Storyboard></BeginStoryboard>
               </EventTrigger>
               <EventTrigger RoutedEvent="MouseLeave">
@@ -241,7 +234,7 @@
           <Viewbox Margin="21">
             <Canvas Width="24" Height="24">
               <Path x:Name="PulseLine" Data="M2,13 H5 L7,7 L10,19 L13,5 L16,15 L18,11 H22" Stroke="White" StrokeThickness="2.2"
-                    StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeDashArray="34 34" StrokeDashOffset="34"/>
+                    StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
             </Canvas>
           </Viewbox>
         </Border>

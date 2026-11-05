@@ -74,32 +74,12 @@ namespace AIPulseSetup
             }
         }
 
-        // Drifting aurora, orbiting rings, floating logo, the pulse line drawing itself.
+        // Calm on purpose: the background and logo stay still, the only motion
+        // is one very slow turn of the outer ring and the progress itself.
         void StartAmbient()
         {
-            Drift(B1, -150, -200, -40, -110, 9000);
-            Drift(B2, 420, 220, 300, 130, 11000);
-            Drift(B3, 470, -140, 360, -60, 8000);
-            Drift(B4, -80, 300, 40, 220, 12000);
-
-            Spin(OrbitARot, 360, 24000);
-            Spin(OrbitBRot, -360, 16000);
-            Spin(SatRot, 360, 7000);
-
-            var floatAnim = new DoubleAnimation(0, -6, TimeSpan.FromMilliseconds(2600)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
-            LogoFloat.BeginAnimation(TranslateTransform.YProperty, floatAnim);
-
-            var glow = new DoubleAnimation(0.45, 0.9, TimeSpan.FromMilliseconds(1600)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() };
-            LogoGlow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, glow);
-
-            var draw = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
-            draw.KeyFrames.Add(new LinearDoubleKeyFrame(34, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-            draw.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1100)), new CubicEase { EasingMode = EasingMode.EaseOut }));
-            draw.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2000))));
-            draw.KeyFrames.Add(new EasingDoubleKeyFrame(-34, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2800)), new CubicEase { EasingMode = EasingMode.EaseIn }));
-            PulseLine.BeginAnimation(Shape.StrokeDashOffsetProperty, draw);
-
-            SeedStars();
+            Spin(OrbitARot, 360, 90000);
+            LogoGlow.Opacity = 0.55;
             clock.Start();
             CompositionTarget.Rendering += OnFrame;
             Closed += (s, e) => CompositionTarget.Rendering -= OnFrame;
@@ -200,34 +180,15 @@ namespace AIPulseSetup
             ProgressArc.Data = new PathGeometry(new[] { fig });
         }
 
-        // Confetti and a ring of light from behind the logo.
+        // Done: one soft ring of light from behind the logo.
         void Celebrate()
         {
-            for (int i = 0; i < 90; i++)
-            {
-                var a = rng.NextDouble() * Math.PI * 2;
-                var speed = 160 + rng.NextDouble() * 320;
-                Shape el = rng.NextDouble() < 0.5
-                    ? (Shape)new Rectangle { Width = 4 + rng.NextDouble() * 5, Height = 2.5 + rng.NextDouble() * 3, RadiusX = 1, RadiusY = 1 }
-                    : new Ellipse { Width = 3 + rng.NextDouble() * 4, Height = 3 + rng.NextDouble() * 4 };
-                el.Fill = new SolidColorBrush(Palette[rng.Next(Palette.Length)]);
-                el.RenderTransform = new RotateTransform();
-                var m = new Mote
-                {
-                    El = el, X = LogoCentre.X, Y = LogoCentre.Y,
-                    Vx = Math.Cos(a) * speed, Vy = Math.Sin(a) * speed - 120,
-                    Life = 1.2 + rng.NextDouble() * 1.1, Spin = (rng.NextDouble() - 0.5) * 900,
-                };
-                Canvas.SetLeft(el, m.X); Canvas.SetTop(el, m.Y);
-                Burst.Children.Add(el);
-                sparks.Add(m);
-            }
             var sc = new ScaleTransform(1, 1);
             var wave = new Ellipse { Width = 100, Height = 100, StrokeThickness = 3, Stroke = (Brush)FindResource("Grad"), RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = sc };
             Canvas.SetLeft(wave, LogoCentre.X - 50); Canvas.SetTop(wave, LogoCentre.Y - 50);
             Burst.Children.Add(wave);
-            AnimateScale(sc, 1, 4.5, 900, new CubicEase { EasingMode = EasingMode.EaseOut });
-            var fade = new DoubleAnimation(0.9, 0, TimeSpan.FromMilliseconds(900));
+            AnimateScale(sc, 1, 2.6, 1100, new CubicEase { EasingMode = EasingMode.EaseOut });
+            var fade = new DoubleAnimation(0.6, 0, TimeSpan.FromMilliseconds(1100));
             fade.Completed += (s, e) => Burst.Children.Remove(wave);
             wave.BeginAnimation(OpacityProperty, fade);
         }
