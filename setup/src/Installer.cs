@@ -233,6 +233,7 @@ namespace AIPulseSetup
             progress(0.25, "Removing shortcuts and settings from Windows…");
             using (var k = Registry.CurrentUser.OpenSubKey(RunKey, true)) k?.DeleteValue(AppName, false);
             Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false);
+            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\quillwave", false);   // quillwave:// links
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\" + AppId, false);
             if (File.Exists(DesktopLink)) File.Delete(DesktopLink);
             if (Directory.Exists(StartMenuDir)) Directory.Delete(StartMenuDir, true);
