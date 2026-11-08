@@ -113,6 +113,50 @@ namespace AIPulseSetup
         }
 
         public static bool HasPayload => Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains("payload.zip");
+
+        // How much the app takes once unpacked (from the zip's own directory, no unpacking).
+        public static long PayloadBytes
+        {
+            get
+            {
+                try
+                {
+                    using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("payload.zip"))
+                    {
+                        if (s == null) return 0;
+                        using (var z = new ZipArchive(s, ZipArchiveMode.Read)) return z.Entries.Sum(e => e.Length);
+                    }
+                }
+                catch { return 0; }
+            }
+        }
+
+        public static long InstalledBytes(string dir)
+        {
+            try { return Directory.Exists(dir) ? DirSize(dir) : 0; } catch { return 0; }
+        }
+
+        // The user-facing release notes (WHATSNEW.md from the app, embedded at
+        // build time): the bullets for this version, or the newest ones.
+        public static string[] WhatsNew()
+        {
+            try
+            {
+                using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("whatsnew.md"))
+                {
+                    if (s == null) return new string[0];
+                    var lines = new StreamReader(s).ReadToEnd().Replace("\r", "").Split('\n');
+                    int start = Array.FindIndex(lines, l => l.StartsWith("## " + Version + " ") || l.Trim() == "## " + Version);
+                    if (start < 0) start = Array.FindIndex(lines, l => l.StartsWith("## "));
+                    if (start < 0) return new string[0];
+                    return lines.Skip(start + 1).TakeWhile(l => !l.StartsWith("## "))
+                        .Where(l => l.StartsWith("- "))
+                        .Select(l => l.Substring(2).Replace("**", "").Replace("`", "").Trim())
+                        .Take(12).ToArray();
+                }
+            }
+            catch { return new string[0]; }
+        }
         public static bool IsInstalled => File.Exists(Path.Combine(DefaultDir(), AppExe));
 
         // ---------------- install ----------------

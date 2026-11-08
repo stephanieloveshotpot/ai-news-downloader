@@ -13,9 +13,12 @@
     <PayloadDir Condition="'$(PayloadDir)' == ''">$(MSBuildThisFileDirectory)..\..\payload\app</PayloadDir>
     <UninstallerExe Condition="'$(UninstallerExe)' == ''">$(MSBuildThisFileDirectory)..\Uninstall\bin\Release\Uninstall Quillwave.exe</UninstallerExe>
     <PayloadZip>$(MSBuildThisFileDirectory)obj\payload.zip</PayloadZip>
+    <!-- the app's user-facing release notes, shown while updating (optional) -->
+    <WhatsNewFile Condition="'$(WhatsNewFile)' == ''">$(MSBuildThisFileDirectory)..\..\payload\whatsnew.md</WhatsNewFile>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(PayloadZip)" LogicalName="payload.zip" />
+    <EmbeddedResource Include="$(WhatsNewFile)" LogicalName="whatsnew.md" Condition="Exists('$(WhatsNewFile)')" />
   </ItemGroup>
   <Target Name="ZipPayload" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('$(PayloadDir)\Quillwave.exe')" Text="PayloadDir '$(PayloadDir)' has no Quillwave.exe. Unzip the app bundle first." />

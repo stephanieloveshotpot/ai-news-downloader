@@ -79,7 +79,7 @@ jobs:
           $v = "${{ steps.bundle.outputs.version }}"
           dotnet build setup\Uninstall\Uninstall.csproj -c Release -p:Version=$v -o build\uninstall
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::uninstaller build failed"; exit 1 }
-          dotnet build setup\Setup\Setup.csproj -c Release -p:Version=$v "-p:PayloadDir=$PWD\payload\app" "-p:UninstallerExe=$PWD\build\uninstall\Uninstall Quillwave.exe" -o build\setup
+          dotnet build setup\Setup\Setup.csproj -c Release -p:Version=$v "-p:PayloadDir=$PWD\payload\app" "-p:UninstallerExe=$PWD\build\uninstall\Uninstall Quillwave.exe" "-p:WhatsNewFile=$PWD\payload\WHATSNEW.md" -o build\setup
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::setup build failed"; exit 1 }
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item build\setup\Quillwave-Setup.exe "dist\Quillwave-Setup-$v.exe"
@@ -117,6 +117,26 @@ jobs:
             "$($_.Name): $h"
           }
 
+      # this version's What's new goes in the release body: the app's updater shows it
+      - name: Write the release notes
+        shell: bash
+        run: |
+          v="${{ steps.bundle.outputs.version }}"
+          {
+            echo "**Download \`Quillwave-Setup-$v.exe\` below and run it.**"
+            echo
+            if [ -f payload/WHATSNEW.md ]; then
+              echo "## What's new in $v"
+              echo
+              awk -v v="$v" '/^## /{ if (on) exit; if (index($0, "## " v) == 1) { on = 1; next } } on && /^- /' payload/WHATSNEW.md
+              echo
+            fi
+            echo "Installs for your Windows account only, no admin rights needed. Windows SmartScreen may warn because the installer isn't code-signed yet: click More info, then Run anyway."
+            echo
+            echo "(\`AI-Pulse-Setup-…\` is the same installer under the app's old name, for copies updating from before the rename.)"
+          } > dist/NOTES.md
+          cat dist/NOTES.md
+
       - uses: actions/upload-artifact@v4
         with:
           name: installer
@@ -132,10 +152,4 @@ jobs:
             dist/Quillwave-Setup-*.exe.sha256
             dist/AI-Pulse-Setup-*.exe
             dist/AI-Pulse-Setup-*.exe.sha256
-          body: |
-            **Download `Quillwave-Setup-${{ steps.bundle.outputs.version }}.exe` below and run it.**
-            (`AI-Pulse-Setup-…` is the same installer under the app's old name, for copies updating from before the rename.)
-
-            The installer shows the terms of service and privacy policy, lets you choose whether Quillwave starts with Windows and when it pops up, and creates the app and data folders, Start menu and desktop shortcuts, and an uninstaller. No Python or admin rights needed.
-
-            Windows SmartScreen may warn because the installer isn't code-signed: click *More info → Run anyway*.
+          body_path: dist/NOTES.md
