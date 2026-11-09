@@ -390,7 +390,7 @@ namespace AIPulseSetup
 
         async Task FakeWork(double upTo)
         {
-            string[] files = { "Quillwave.exe", "resources.pak", "app.asar", "aipulse-scraper.exe", "icudtl.dat" };
+            string[] files = { "Quillwave.exe", "resources.pak", "app.asar", "quillwave-scanner.exe", "icudtl.dat" };
             for (int i = 0; i <= 100 * upTo; i += 2)
             {
                 SetProgress(i / 100.0, i < 86 ? "Unpacking " + files[(i / 17) % files.Length] : i < 93 ? "Adding shortcuts…" : "Registering with Windows…");

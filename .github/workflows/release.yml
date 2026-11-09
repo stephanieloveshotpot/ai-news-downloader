@@ -98,7 +98,7 @@ jobs:
           if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Quillwave\Uninstall Quillwave.exe")) { throw "uninstaller missing" }
           if (-not (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AIPulse" -ErrorAction SilentlyContinue)) { throw "Installed apps entry missing" }
           if (Get-Process "Quillwave" -ErrorAction SilentlyContinue) { throw "a silent install must not start the app" }
-          & "$env:LOCALAPPDATA\Programs\Quillwave\resources\scraper\aipulse-scraper.exe" --list-sources
+          & "$env:LOCALAPPDATA\Programs\Quillwave\resources\scraper\quillwave-scanner.exe" --list-sources
           if (-not (Test-Path "$([Environment]::GetFolderPath('Programs'))\Quillwave\Quillwave.lnk")) { throw "Start menu shortcut missing" }
           $p = Start-Process -Wait -PassThru -FilePath "$env:LOCALAPPDATA\Programs\Quillwave\Uninstall Quillwave.exe" -ArgumentList "/S"
           if ($p.ExitCode -ne 0) { throw "silent uninstall exited with $($p.ExitCode)" }
