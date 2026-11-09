@@ -24,6 +24,7 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)*.cs" />
     <Page Include="$(MSBuildThisFileDirectory)MainWindow.xaml" Generator="MSBuild:Compile" SubType="Designer" />
+    <Resource Include="$(MSBuildThisFileDirectory)..\..\assets\logo.png" Link="logo.png" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.IO.Compression" />
   </ItemGroup>

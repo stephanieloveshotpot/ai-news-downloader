@@ -88,7 +88,7 @@ namespace AIPulseSetup
             var mb = Mb(Installer.PayloadBytes);
             SetHeader(reinstall ? "Reinstall Quillwave" : "Install Quillwave",
                 reinstall ? "Version " + Installer.Version + ". Your settings, notes and account stay as they are." : "Version " + Installer.Version + ". All your AI news in one sitting.", null);
-            SizeTitle.Text = mb > 0 ? $"About {mb} MB, no admin rights needed" : "No admin rights needed";
+            SizeTitle.Text = mb > 0 ? $"About {mb} MB · no admin rights" : "No admin rights needed";
             if (reinstall) { AfterTitle.Text = "Then Quillwave opens"; AfterText.Text = "Everything you had is still there."; }
             Foot("Installs for " + Environment.UserName + " only");
             Buttons("Install", StartInstall, "Cancel", FadeAndClose);
@@ -100,7 +100,7 @@ namespace AIPulseSetup
             var dir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             var mb = Mb(Installer.InstalledBytes(dir));
             SetHeader("Uninstall Quillwave", "Version " + Installer.Version + (opts.Preview ? "" : " · " + dir), null);
-            RemoveApp.Text = mb > 0 ? $"• The app ({mb} MB)" : "• The app and its files";
+            RemoveApp.Text = mb > 0 ? $"✕  The app ({mb} MB)" : "✕  The app and its files";
             Foot("Nothing is sent anywhere when you uninstall");
             Buttons("Uninstall", StartRemove, "Cancel", FadeAndClose, danger: true);
             PaintDataChoice();
@@ -165,8 +165,9 @@ namespace AIPulseSetup
                 else
                 {
                     SetHeader("Quillwave is installed", "Version " + Installer.Version, true);
-                    DoneText.Text = "You'll find it in the Start menu" + (o.DesktopShortcut ? " and on your desktop" : "") + ". When it opens, a short setup picks your topics and asks you to accept the terms.";
+                    DoneText.Text = "You'll find it in the Start menu" + (o.DesktopShortcut ? " and on your desktop" : "") + ".";
                     LaunchBox.Visibility = Visibility.Visible;
+                    FirstSteps.Visibility = Visibility.Visible;
                     DoneNotes.Visibility = Visibility.Collapsed;
                     Foot("");
                     Buttons("Finish", () => { if (LaunchBox.IsChecked == true && !opts.Preview) Installer.LaunchApp(o, fresh: true); FadeAndClose(); }, null, null);
@@ -192,6 +193,7 @@ namespace AIPulseSetup
                 ? new[] { "Close Quillwave", "Remove shortcuts and Windows entries", "Remove the app", "Delete your data on this PC" }
                 : new[] { "Close Quillwave", "Remove shortcuts and Windows entries", "Remove the app" };
             ShowNotes(false);
+            TipsPanel.Visibility = Visibility.Collapsed;   // no app tips while removing it
             Foot("");
             Buttons(null, null, null, null);
             SetProgress(0, "Getting ready…");
@@ -265,6 +267,7 @@ namespace AIPulseSetup
             var show = on && notes.Length > 0;
             NotesCol.Width = show ? new GridLength(1.05, GridUnitType.Star) : new GridLength(0);
             NotesPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            TipsPanel.Visibility = on ? Visibility.Collapsed : Visibility.Visible;   // updates show what's new instead
             if (show) FillNotes(NotesList, NotesTitle, brief: true);
         }
 
@@ -329,7 +332,24 @@ namespace AIPulseSetup
             foreach (var p in new FrameworkElement[] { WelcomePage, ProgressPage, DonePage, ErrorPage, RemovePage })
                 if (p != page) p.Visibility = Visibility.Collapsed;
             page.Visibility = Visibility.Visible;
-            if (old != page) page.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
+            if (old == page) return;
+            page.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
+            // each block slides up a few pixels, one after another
+            if (page is System.Windows.Controls.Panel panel)
+            {
+                var i = 0;
+                foreach (UIElement child in panel.Children)
+                {
+                    if (child.Visibility != Visibility.Visible) continue;
+                    var shift = new TranslateTransform(0, 10);
+                    child.RenderTransform = shift;
+                    var delay = TimeSpan.FromMilliseconds(40 + 55 * i++);
+                    var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+                    child.Opacity = 0;
+                    child.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { BeginTime = delay, FillBehavior = FillBehavior.HoldEnd });
+                    shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(320)) { BeginTime = delay, EasingFunction = ease });
+                }
+            }
         }
 
         void ToggleDir()
