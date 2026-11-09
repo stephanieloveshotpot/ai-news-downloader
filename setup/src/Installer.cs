@@ -263,7 +263,11 @@ namespace AIPulseSetup
         {
             var exe = Path.Combine(o.Dir, AppExe);
             if (!File.Exists(exe)) return;
-            Process.Start(new ProcessStartInfo(exe, fresh ? "--setup" : "") { UseShellExecute = true, WorkingDirectory = o.Dir });
+            // Through the Windows shell (explorer), like the Start menu, so the app gets the
+            // user's normal environment and not the installer's: started directly as the
+            // installer's child, the news scanner couldn't reach the sources on some PCs.
+            try { Process.Start(new ProcessStartInfo("explorer.exe", "\"" + exe + "\"") { UseShellExecute = true, WorkingDirectory = o.Dir }); }
+            catch { Process.Start(new ProcessStartInfo(exe, fresh ? "--setup" : "") { UseShellExecute = true, WorkingDirectory = o.Dir }); }
         }
 
         // ---------------- uninstall ----------------
