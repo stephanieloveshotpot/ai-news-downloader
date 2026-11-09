@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/stephanieloveshotpot/ai-news-downloader/releases/latest"><b>Download the latest version</b></a>
+  <a href="https://quillwave-app.web.app/beta"><b>Get Quillwave</b></a>
   &nbsp;·&nbsp;
   <a href="https://quillwave-app.web.app">Website</a>
   &nbsp;·&nbsp;
@@ -23,7 +23,7 @@
 
 ## Install
 
-1. Open the [latest release](https://github.com/stephanieloveshotpot/ai-news-downloader/releases/latest) and download **`Quillwave-Setup-<version>.exe`**.
+1. Go to [quillwave-app.web.app/beta](https://quillwave-app.web.app/beta), sign in (free, with Google or your email) and press **Download for Windows**.
 2. Run it. If Windows shows *"Windows protected your PC"*, click **More info**, then **Run anyway**. The installer isn't code-signed yet, so SmartScreen is cautious with it.
 3. Click **Install**. Quillwave opens with a one-minute setup.
 
